@@ -1,0 +1,16 @@
+{
+    "model": "qwen2.5:7b-instruct",
+    "created_at": "2026-01-19T14:52:05.799620023Z",
+    "message": {
+        "role": "assistant",
+        "content": "### Diagonalizzabilità Indice\n\n#### 1 Matrici simili\n2\n- Endomorfismi e cambiamenti di base . . . . . . . . . . . . . . 2\n3 - Matrici simili e endomorfismi diagonalizzabili . . . . . . . . . 3\n\n#### 2 Autovalori e autovettori\n4\n- Il polinomio caratteristico . . . . . . . . . . . . . . . . . . . . 5\n9 - Molteplicità algebrica e molteplicità geometrica . . . . . . . . 9\n\n#### 3 Criterio di diagonalizzabilità\n10\n\n#### 4 Endomorfismi simmetrici\n11\n- Il teorema spettrale . . . . . . . . . . . . . . . . . . . . . . . . . 13\n\n#### 5 Esercizi ricapitolativi\n15\n- Esercizi . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 15\n- Soluzioni degli esercizi . . . . . . . . . . . . . . . . . . . . . . 16\n- Svolgimento degli esercizi . . . . . . . . . . . . . . . . . . . . 17\n- Domande di teoria . . . . . . . . . . . . . . . . . . . . . . . . 22\n\n### Diagonalizzabilità\n\n#### 1 Dato uno spazio vettoriale \\( V \\), un endomorfismo \\( f:V \\to V \\) può essere rappresentato da una matrice quadrata \\( M_A(f) \\), per qualsiasi base \\( A \\) di \\( V \\). Abbiamo anche visto come, date due basi \\( A \\) e \\( B \\) di \\( V \\) sia possibile utilizzare le matrici di transizione \\( M_B(A) \\) e \\( M_A(B) \\) per passare da una rappresentazione di \\( f \\), \\( M_A(f) \\), ad un'altra, \\( M_B(f) \\). Una classe particolarmente interessante di matrici quadrate è data dalle matrici diagonali, che ne formano un sottospazio. Dato un endomorfismo \\( f:V \\to V \\), è possibile chiedersi se esiste una base di \\( V \\) rispetto alla quale la matrice rappresentativa sia diagonale. Tali endomorfismi, detti diagonalizzabili, formeranno l'argomento principale di questo capitolo. Vedremo come caratterizzare tali endomorfismi e descriveremo un metodo sistematico che ci permetterà di studiare la diagonalizzabilità di qualunque endomorfismo dato.\n\n#### 1 Matrici simili\n2\n- Endomorfismi e cambiamenti di base . . . . . . . . . . . . . . 2\n3 - Matrici simili e endomorfismi diagonalizzabili . . . . . . . . . 3"
+    },
+    "done": true,
+    "done_reason": "stop",
+    "total_duration": 54431532606,
+    "load_duration": 124805075,
+    "prompt_eval_count": 1107,
+    "prompt_eval_duration": 2722403784,
+    "eval_count": 746,
+    "eval_duration": 50293181945
+}

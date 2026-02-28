@@ -1,0 +1,16 @@
+{
+    "model": "qwen2.5:7b-instruct",
+    "created_at": "2026-01-19T14:47:51.823816485Z",
+    "message": {
+        "role": "assistant",
+        "content": "### Principio di Induzione per Dimostrazione di Proprietà\n\n| La tecnica descrive come dimostrare la validità di una tesi P(m) per ogni numero naturale m ≤ M utilizzando il principio di induzione.\n| Viene applicato in particolare alla proprietà dell'insieme {v1, ..., vm} essere linearmente indipendente.\n\n- **Passo Base:**\n  - Dimostrare che la tesi P(1) è vera.\n\n- **Passo Induttivo:**\n  - Supporre che P(m) sia vera.\n  - Dimostrare che se P(m) è vera, allora P(m + 1) è anche vera.\n\n### Esempio con Autovalori e Spazi Vettoriali\n\n| Si considera l'esempio dell'endomorfismo f: V → V su uno spazio vettoriale reale V.\n| L'autovalore \u0015 è definito come un vettore v ≠ 0 tale che f(v) = \u0015v.\n\n- **Definizione di Autovalore e Autovettore:**\n  - \\[ \n    \\text{esiste } v \\neq 0, \\text{ t.c. } f(v) = \\lambda v\n    \\]\n\n- **Condizioni Equivalente per Autovalori:**\n  - Esiste un vettore \\( x = [x_1, ..., x_n]^T \\neq 0 \\), tale che \\( Ax = \\lambda x \\).\n  - Esiste una soluzione non banale del sistema lineare omogeneo definito dalla matrice \\( A - \\lambda I_n \\).\n\n- **Autovalori e Polinomio Caratteristico:**\n  - Gli autovalori sono le soluzioni in \\( \\lambda \\) dell'equazione \\( \\det(A - \\lambda I_n) = 0 \\).\n  - Il polinomio caratteristico di f è il polinomio in \\( \\lambda \\) di grado n dato da \\( p(\\lambda) = \\det(A - \\lambda I_n) \\).\n\n- **Autovettori e Base Diagonalizzabile:**\n  - Un endomorfismo f è diagonalizzabile se e solo se V ammette una base formata da autovettori di f.\n  \n### Dimostrazione della Proposizione\n\n| Sia \\( A = [b_{v_1}, ..., b_{v_n}] \\) una base di V formata da autovettori.\n| Si consideri un autovalore \\( \\lambda_i \\) relativo al vettore \\( v_i \\).\n  \n- **Autovettori e Matrice Diagonale:**\n  - Poiché \\( f(v_i) = \\lambda_i v_i \\), si ha \\( Av_i = \\lambda_i v_i \\).\n  - Dalla matrice \\( A \\) in cui le colonne sono gli autovettori \\( b_{v_1}, ..., b_{v_n} \\), con i coefficienti sulla diagonale principale che sono \\( \\lambda_1, ..., \\lambda_n \\).\n\n- **Matrice Diagonale:**\n  - Allora la matrice rappresentativa in tale base sarà una matrice diagonale di forma:\n    ```\n    A = \n    [λ1   0      ...  0\n     0    λ2     ...  0\n     ...\n     0    0       ...  λn]\n    ```\n\n- **Autovettori e Base Diagonalizzabile:**\n  - Inversamente, se \\( f \\) è diagonalizzabile con una base formata da autovettori, allora esiste una matrice diagonale \\( A \\) in cui i coefficienti sulla diagonale principale sono gli autovalori.\n\n### Conclusione\n\n| Questa dimostrazione illustra come l'uso del principio di induzione e le proprietà degli endomorfismi possano essere applicati per stabilire la validità di teoremi su spazi vettoriali e autovalori."
+    },
+    "done": true,
+    "done_reason": "stop",
+    "total_duration": 69923803002,
+    "load_duration": 115803302,
+    "prompt_eval_count": 1398,
+    "prompt_eval_duration": 3857219897,
+    "eval_count": 894,
+    "eval_duration": 64275051208
+}

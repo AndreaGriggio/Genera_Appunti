@@ -1,0 +1,16 @@
+{
+    "model": "qwen2.5:7b-instruct",
+    "created_at": "2026-01-19T14:41:36.908277064Z",
+    "message": {
+        "role": "assistant",
+        "content": "### Proprietà degli Autospazi\n\n| Gli autovettori relativi ad autovalori distinti sono linearmente indipendenti.\n| Il vettore nullo soddisfa f(0) = 0, quindi appartiene a tutti gli autospazi E(λ).\n| Ciascun autospazio contiene almeno un autovalore non nullo e dunque ha dimensione almeno 1.\n\n### Autovalori e Autospazi\n\n- Se λ è un autovalore di f, allora l'autospazio relativo ad esso coincide con il nucleo di f: E(λ) = {v ∈ V | f(v) = 0} = ker(f).\n- Un endomorfismo ha λ come autovalore se e solo se f non è iniettivo.\n  \n### Esempio\n\n- Lo scalare 1 è un autovalore di f: f(x; y) = (y, x). Il vettore non nullo v = (1, 1) è un autovettore perché f(v) = f(1, 1) = (1, 1) = 1v. L'autospazio relativo a 1 è E(1) = h(1, 1)i.\n- Lo scalare -1 è un autovalore di f: f(x; y) = (-x, -y). Il vettore non nullo v = (1, -1) è un autovettore perché f(v) = f(1, -1) = (1, -1) = -v. L'autospazio relativo a -1 è E(-1) = h(1, -1)i.\n\n### Proposizione\n\n- Sia V uno spazio vettoriale reale e f:V → V un endomorfismo.\n- Siano λ₁, ..., λₘ autovalori di f due a due distinti. Per ogni i = 1, ..., m, sia vᵢ ∈ V un autovettore relativo a λᵢ.\n- Allora l'insieme {v₁, ..., vₘ} è linearmente indipendente.\n\n### Dimostrazione\n\n| Dimostriamo per induzione su m - 1.\n| Per m = 1 la tesi vale in quanto {v₁} è linearmente indipendente.\n| Supponiamo ora che l'insieme {v₁, ..., vₘ₋₁} sia linearmente indipendente. Vogliamo dimostrare che {v₁, ..., vₘ} sia linearmente indipendente.\n\n- Poniamo \\( v = \\sum_{i=1}^{m} \\mu_i v_i = 0 \\). Vogliamo dimostrare che μ₁ = ... = μₘ = 0.\n  \n| Applicando f a entrambi i lati otteniamo:\n\\[ f(v) = \\sum_{i=1}^{m} \\mu_i \\lambda_i v_i = 0 \\]\n\n| Moltiplichiamo v per λₘ e otteniamo:\n\\[ \\lambda_m v = \\sum_{i=1}^{m-1} \\mu_i \\lambda_i v_i + \\mu_m \\lambda_m v_m = 0 \\]\n\n| Sottraendo le due espressioni ottenute:\n\\[ (\\lambda_1 - \\lambda_m) \\mu_1 v_1 + ... + (\\lambda_{m-1} - \\lambda_m) \\mu_{m-1} v_{m-1} = 0 \\]\n\n| Per l'ipotesi induttiva, otteniamo μ₁(λ₁ - λₘ) = 0, ..., μₘ₋₁(λₘ₋₁ - λₘ) = 0.\n  \n| Dal momento che gli autovalori λᵢ sono a due a due distinti, allora otteniamo μ₁ = ... = μₘ₋₁ = 0.\n\n| Dunque \\( v = \\mu_m v_m = 0 \\). Dal momento che \\( v_m \\neq 0 \\), allora anche μₘ = 0.\n\n### Il Polinomio Caratteristico\n\n| Vediamo ora un metodo sistematico per trovare gli autovalori di un dato endomorfismo.\n| Sia V uno spazio vettoriale reale di dimensione n, f:V → V un endomorfismo, sia A una base fissata di V e A = MA(f) la matrice rappresentativa.\n| Le seguenti affermazioni sono equivalenti."
+    },
+    "done": true,
+    "done_reason": "stop",
+    "total_duration": 77545582214,
+    "load_duration": 105483894,
+    "prompt_eval_count": 1577,
+    "prompt_eval_duration": 4520599499,
+    "eval_count": 1005,
+    "eval_duration": 71156592302
+}

@@ -1,0 +1,15 @@
+{
+    "model": "llama3:8b-instruct-q4_K_M",
+    "temperature": 0.4,
+    "num_predict": 753,
+    "messages": [
+        {
+            "role": "system",
+            "content": "OBIETTIVO:\nGenerare appunti tecnici per Notion usando SOLO i delimitatori definiti qui sotto.\n\nDELIMITATORI CONSENTITI:\n- TITOLO: riga che inizia con `### `.\n- DESCRIZIONE: riga che inizia con `| ` (una singola barra verticale seguita da uno spazio).\n- BULLET POINT: riga che inizia con `- `.\n- BLOCCO DI EQUAZIONE: blocco separato che inizia con una riga contenente solo `\\[` e termina con una riga contenente solo `\\]`.\n- BLOCCO DI CODICE: blocco separato delimitato da righe con ``` (tre backtick). Può essere:\n  - ```linguaggio\n    ...codice...\n    ```\n  - oppure\n    ```\n    ...codice...\n    ```\n\nSTRUTTURA DI OGNI SEZIONE:\nPer ogni argomento o sotto-argomento genera una sezione composta nell'ordine:\n\n1. Esattamente UN titolo:\n   - una sola riga `### ...`\n2. ZERO O PIÙ righe di descrizione:\n   - ogni riga di descrizione deve iniziare con `| `\n3. ZERO O PIÙ bullet point:\n   - ogni riga di elenco deve iniziare con `- `\n4. ZERO O PIÙ blocchi di equazioni:\n   - ogni blocco deve essere:\n     \\[\n     ...contenuto della formula...\n     \\]\n5. ZERO O PIÙ blocchi di codice:\n   - delimitati da ``` come definito sopra.\n\nREGOLE GENERALI:\n- NON usare mai `|` come carattere di chiusura: niente `| descrizione |`. La descrizione deve iniziare con `| ` e poi solo testo.\n- NON scrivere testo libero che non inizi con uno dei prefissi: `###`, `|`, `-`, ```, `\\[` o `\\]`.\n- NON mescolare testo e formule nello stesso blocco:\n  - il testo va SOLO in righe con `| ` o `- `\n  - le formule vanno SOLO dentro blocchi `\\[` ... `\\]`.\n- Ogni blocco (titolo, descrizione, bullet, equazione, codice) deve terminare con un newline reale `\\n`.\n- Scrivi in modo diretto, tecnico e conciso.\n- Non usare frasi introduttive.\n- La risposta deve terminare con un newline come ultimo carattere.\n\nESEMPIO VALIDO:\n\n### Trasformata di Laplace\n| Operatore integrale che trasforma funzioni del tempo in funzioni della variabile complessa s.\n| Utile per analizzare sistemi lineari tempo-invarianti e risolvere equazioni differenziali.\n- Definizione formale\n- Uso nelle equazioni differenziali lineari\n- Collegamento con stabilità e risposta nel dominio s\n\\[\n\\mathcal{L}\\{f(t)\\} = F(s) = \\int_{0^-}^{\\infty} e^{-st} f(t)\\, dt\n\\]\n```python\ndef laplace_transform(f):\n    pass\n```\n"
+        },
+        {
+            "role": "user",
+            "content": "ciao negro schifoso negi"
+        }
+    ]
+}
