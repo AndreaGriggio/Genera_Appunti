@@ -1,6 +1,49 @@
+#file di configurazione
 /src/programmi_costruzione_appunti/config.py
 /src/API_Notion/config.py
+src/GUI/settings.json
+src/GUI/dict_notion.json
+src/GUI/history_pdf.json
+src/GUI/history_loaded.json
+src/GUI/config.py
+src/GUI/prova.py
+src/prova.py
+prova.py
+#Id pagine di notion
+*.id
+src/data/
+#ambienti virtuali
 /.venv/
+venv/
+__pycache__/
+#Cache python
 /src/__pycache__/
+*.pyc
+*pyo
 /src/API_Notion/__pycache__/
-/src/programmi_costruzione_appunti/__pycache__
+/src/programmi_costruzione_appunti/__pycache__/
+/src/GUI/__pycache_/
+/build/
+/dist/
+genera_appunti.spec
+src/GUI/Data/
+# IDE
+.vscode/
+.idea/
+
+
+
+# OS
+.DS_Store
+Thumbs.db
+
+*.env
+.env
+
+src/data/
+src/API_Notion/data/
+src/API_LLM_Google/config.py
+src/API_LLM_Google/prova.pdf
+build/
+dist/
+genera_appunti.spec
