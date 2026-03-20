@@ -47,3 +47,7 @@ src/API_LLM_Google/prova.pdf
 build/
 dist/
 genera_appunti.spec
+build.spec
+src.zip
+*.deb
+*.1

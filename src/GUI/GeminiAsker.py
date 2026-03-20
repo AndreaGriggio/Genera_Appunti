@@ -4,6 +4,9 @@ from src.GUI.ModelManager import ModelManager
 from pathlib import Path
 
 class GeminiAsker :
+    PDF_MIME  = "application/pdf"
+    TEXT_MIME = "text/plain"
+
     def __init__(self) -> None:
         self.client = Client(api_key=GEMINI_TOKEN)
         self.manager = ModelManager()
@@ -12,17 +15,19 @@ class GeminiAsker :
             if mode["available"]:
                 self.current_model = mode["name"]
                 break
-    def ask(self, prompt: str, pdf_path: str = "", pdf: bool = False, json: bool = False) -> list[types.GenerateContentResponse |bool]| None:
+    def ask(self, prompt: str, path: str = "", pdf: bool = False, is_json: bool = False) -> list[types.GenerateContentResponse |bool]| None:
         """
         Invia una richiesta a Gemini.
         Gestisce automaticamente il cambio modello in caso di errore 429 (Quota).
         """
-        if prompt == "": 
+        if not prompt : 
             return None
-
+        path_obj  = Path(path) if path else None
+        is_pdf    = path_obj is not None and path_obj.suffix.lower() == ".pdf"
+        has_file  = path_obj is not None and path_obj.exists()
         # 1. SCELTA DEL MODELLO
         # Chiediamo al manager il miglior modello disponibile ORA
-        l= self.manager.get_best_model(needs_pdf=pdf, needs_json=json)
+        l= self.manager.get_best_model(needs_pdf=pdf, needs_json=is_json)
         if not l:
             print("❌ Nessun modello disponibile o risorse esaurite su tutti i modelli.")   
             return None
@@ -45,65 +50,57 @@ class GeminiAsker :
         print(f"🤖 Tentativo con modello: {model_name}")
 
         # 2. CONFIGURAZIONE
-        config = self.manager.get_config(model_name, force_json=json,system_instruction=NOTION_SYSTEM_INSTRUCTION)
+        config = self.manager.get_config(model_name, force_json=is_json,system_instruction=NOTION_SYSTEM_INSTRUCTION)
 
         # 3. PREPARAZIONE CONTENUTI
         contents = []
         
-        # Gestione PDF (Caricamento o Bytes)
-        if pdf and pdf_path:
+        if has_file:
             try:
-                # Opzione A: Upload tramite File API (come facevi tu)
-                pdf_bytes = Path(pdf_path).read_bytes()
-                pdf_part = types.Part.from_bytes(
-                    data = pdf_bytes,
-                    mime_type="application/pdf"
-                )
-                contents.append(pdf_part)
+                if is_pdf:
+                    # PDF → bytes con mime type corretto
+                    pdf_bytes = path_obj.read_bytes()
+                    contents.append(types.Part.from_bytes(
+                        data=pdf_bytes,
+                        mime_type=GeminiAsker.PDF_MIME
+                    ))
+                else:
+                    # TXT o qualsiasi altro testo → stringa diretta
+                    testo = path_obj.read_text(encoding="utf-8")
+                    contents.append(testo)
             except Exception as e:
-                print(f"❌ Errore caricamento file {pdf_path}: {e}")
-                return None # Se fallisce l'upload del file, è inutile interrogare il modello
-        
+                print(f"❌ Errore caricamento file {path}: {e}")
+                return None
+ 
         contents.append(prompt)
-
-        # 4. CHIAMATA API con gestione errori semplice
+ 
+        # 4. Chiamata API
         try:
             response = self.client.models.generate_content(
                 model=model_name,
                 contents=contents,
                 config=config
             )
-            return [response,json]
-
+            return [response, is_json]
+ 
         except errors.ClientError as e:
-            # L'errore ClientError contiene lo status code HTTP
-            error_code = e.code if hasattr(e, 'code') else 0
-            
-            # --- CASO A: RISORSE ESAURITE (429) ---
+            error_code = e.code if hasattr(e, "code") else 0
+ 
             if error_code == 429:
-                print(f"⚠️ Quota esaurita per {model_name} (Err 429). Cambio modello...")
-                
-                # 1. Segnala al manager che questo modello è morto
-                self.manager.report_error(model_name,error_code)
-                
-                # 2. RICORSIONE: Riprova la stessa domanda
-                # Il manager ora escluderà il modello fallito e ti darà il prossimo
-                return self.ask(prompt, pdf_path, pdf, json)
-
-            # --- CASO B: ERRORE SERVER GOOGLE (500, 503) ---
+                print(f"⚠️ Quota esaurita per {model_name}. Cambio modello...")
+                self.manager.report_error(model_name, error_code)
+                return self.ask(prompt, path, is_json)
+ 
             elif error_code >= 500:
-                print(f"⚠️ Errore Server Google ({error_code}). Riprovo con altro modello...")
-                self.manager.report_error(model_name,error_code)
-                return self.ask(prompt, pdf_path, pdf, json)
-
-            # --- CASO C: ERRORE RICHIESTA (400) ---
+                print(f"⚠️ Errore Server Google ({error_code}). Riprovo...")
+                self.manager.report_error(model_name, error_code)
+                return self.ask(prompt, path, is_json)
+ 
             else:
                 print(f"❌ Errore non recuperabile ({error_code}): {e}")
-                # Se la richiesta è malformata (es. file troppo grande), inutile riprovare
                 return None
-
+ 
         except Exception as e:
-            # Errori generici di Python (es. rete staccata)
             print(f"❌ Errore generico imprevisto: {e}")
             return None
 

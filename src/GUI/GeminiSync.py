@@ -2,17 +2,22 @@ from PyQt6.QtCore import QThread, pyqtSignal
 from src.GUI.GeminiAsker import GeminiAsker
 from src.GUI.GeminiAnswer import GeminiAnswer # Adegua l'import
 from google.genai import types
+from pathlib import Path
+
 class GeminiSyncWorker(QThread):
+    PDF_SUFFIXES = {".pdf"}
+    TEXT_SUFFIXES = {".txt"}
+
     finished = pyqtSignal()      
     error = pyqtSignal(str)      
     log = pyqtSignal(str)        
     progress = pyqtSignal(int, int) # Nuovo: Invia (File_corrente, File_totali)
 
     # GLI ARGOMENTI VANNO QUI
-    def __init__(self, prompt: str, pdf_paths: list, pdf: bool = True, json_mode: bool = True):
+    def __init__(self, prompt: str, paths: list, pdf: bool = True, json_mode: bool = True):
         super().__init__()
         self.prompt = prompt
-        self.pdf_paths = pdf_paths # È una LISTA di percorsi
+        self.pdf_paths = paths # È una LISTA di percorsi
         self.pdf = pdf
         self.json_mode = json_mode
 
@@ -27,17 +32,26 @@ class GeminiSyncWorker(QThread):
             totali = len(self.pdf_paths)
             
             for index, path in enumerate(self.pdf_paths, start=1):
-                from pathlib import Path
+                
                 nome_file = Path(path).name
                 
+                path_obj = Path(path)
+                nome_file = path_obj.name
+                suffix = path_obj.suffix.lower()
+
+                if suffix not in GeminiSyncWorker.PDF_SUFFIXES | GeminiSyncWorker.TEXT_SUFFIXES:
+                    self.log.emit(f"⏭️ [{index}/{totali}] Formato non supportato, ignorato: {nome_file}")
+                    self.progress.emit(index, totali)
+                    continue
+ 
                 self.log.emit(f"📄 [{index}/{totali}] Elaborazione di: {nome_file}...")
-                
+
                 # 1. Chiedi a Gemini
                 l = asker.ask(
                     prompt=self.prompt, 
-                    pdf_path=str(path), 
+                    path=str(path), 
                     pdf=self.pdf, 
-                    json=self.json_mode
+                    is_json=self.json_mode
                 )
                 if not l:
                     self.log.emit(f"⚠️ Errore o modello esaurito per: {nome_file}")

@@ -1,245 +1,294 @@
-import json
 import re
-from typing import List, Dict, Any
+from typing import Any
+from pydantic import ValidationError
+
+from src.GUI.NotionSchema import NotionDocument, NotionBlock, BlockType
+
 
 class NotionParser:
-    def __init__(self):
-        self.MAX_TEXT_LENGTH = 2000
+    MAX_TEXT_LENGTH = 2000
 
-    def parse(self, content: str, is_json: bool) -> tuple[str, List[Dict[str, Any]]]:
+    # ── Entry point ───────────────────────────────────────────────────────────
+
+    def parse(self, content: str, is_json: bool) -> tuple[str, list[dict[str, Any]]]:
         """
-        Ritorna il Titolo della pagina e la lista dei blocchi da caricare.
+        Punto di ingresso unico.
+        - is_json=True  → parsing strutturato via NotionDocument (Gemini con JSON mode)
+        - is_json=False → fallback Markdown per modelli Gemma
         """
         if is_json:
-            return self._parse_json_to_blocks(content)
+            return self._parse_document(content)
         else:
-            return "Appunti Generici", self._parse_markdown_to_blocks(content)
+            return "Appunti Generici", self._parse_markdown_fallback(content)
 
-    def _parse_json_to_blocks(self, content: str) -> tuple[str, List[Dict[str, Any]]]:
-        blocks = []
-        page_title = "Senza Titolo"
-        
+    # ── Parsing strutturato (JSON mode) ──────────────────────────────────────
+
+    def _parse_document(self, content: str) -> tuple[str, list[dict[str, Any]]]:
+        """
+        Valida il JSON con Pydantic e converte ogni blocco.
+        Se la validazione fallisce, logga l'errore e restituisce lista vuota.
+        """
         try:
-            data = json.loads(content)
-            
-            # 1. Estraggo il Titolo (e creo il primo blocco Heading 2)
-            if "title" in data:
-                page_title = self._clean_title(data["title"])
-                blocks.append(self.create_heading_2(page_title))
-            
-            # 2. Cerco l'array dei contenuti (Gemini lo chiama in vari modi, li copriamo)
-            sections = data.get("sections") or data.get("notes") or data.get("content") or []
-            
-            # 3. Parso le sezioni
-            if sections:
-                blocks.extend(self.parse_section(sections))
+            doc = NotionDocument.model_validate_json(content)
+        except ValidationError as e:
+            print(f"❌ JSON non conforme allo schema NotionDocument:\n{e}")
+            return "Senza Titolo", []
+        except Exception as e:
+            print(f"❌ Errore di parsing JSON generico: {e}")
+            return "Senza Titolo", []
 
-            return page_title, blocks
+        blocks: list[dict[str, Any]] = []
 
-        except json.JSONDecodeError as e:
-            print(f"❌ Errore di decodifica JSON: {e}")
-            return page_title, blocks
-        
-    def _clean_title(self,text:str)->str:
-        return re.sub(r'^#+\s*','',text).strip()
-    
-    def parse_section(self, sections: list) -> List[Dict[str, Any]]:
-        blocks = []
-        for i,element in enumerate(sections):
-            if not isinstance(element, dict):
-                continue
-            
-            # Titolo della sezione diventa Heading 3
-            heading = element.get("heading") or element.get("title")
-            if heading:
-                if i>0:
-                    blocks.append(self.create_divider())
-                blocks.append(self.create_heading_3(self._clean_title(heading)))
-            
-            # Contenuto della sezione
-            content_lines = element.get("content") or element.get("points") or element.get("notes") or []
-            
-            for line in content_lines:
-                if isinstance(line, str):
-                    blocks.extend(self.parse_markdown_line(line))
-                elif isinstance(line, dict):
-                    # Se Gemini ha nidificato ancora (es. sotto-sezioni), ricorsione semplice
-                    if "heading" in line or "title" in line:
-                        blocks.extend(self.parse_section([line]))
-                        
-        return blocks
+        # Heading 2 con il titolo del documento (blocco introduttivo in Notion)
+        blocks.append(self.create_heading_2(doc.title))
 
-    def parse_markdown_line(self, line: str) -> List[Dict[str, Any]]:
+        for b in doc.blocks:
+            notion_block = self._dispatch(b)
+            if notion_block is not None:
+                blocks.append(notion_block)
+
+        return doc.title, blocks
+
+    def _dispatch(self, b: NotionBlock) -> dict[str, Any] | None:
         """
-        Legge una riga e usa semplici regole per creare il blocco giusto.
+        Switch sul tipo di blocco. 
+        Se aggiungi un BlockType in NotionSchema.py, aggiungi il case qui.
         """
-        line = line.strip()
-        if not line:
-            return []
-        
-        match_heading = re.match(r'^#{2,3}\s+(.*)', line)
-        if match_heading:
-            return [self.create_paragraph(f"**{match_heading.group(1)}**")]
+        match b.type:
+            case BlockType.paragraph:
+                return self.create_paragraph(b.text or "")
 
-        # Regola 1: Equazione blocco intero (es. $$ E=mc^2 $$)
-        eq_start = line.find("$$")
-        if eq_start != -1:
-            eq_end = line.find("$$", eq_start + 2)
-            if eq_end != -1:                           # $$ di chiusura trovata
-                blocks = []
-                line1 = line[:eq_start].strip()
-                eq    = line[eq_start + 2:eq_end].strip()
-                line2 = line[eq_end + 2:].strip()
+            case BlockType.heading_3:
+                return self.create_heading_3(b.text or "")
 
-                if line1:
-                    blocks.extend(self.parse_markdown_line(line1))
-                blocks.append(self.create_equation_block(eq))
-                if line2:
-                    blocks.extend(self.parse_markdown_line(line2))
-                return blocks
+            case BlockType.bulleted_list_item:
+                return self.create_bulleted_list_item(b.text or "")
 
-        # Regola 2: Elenco Puntato
-        if line.startswith("- ") or line.startswith("* "):
-            return [self.create_bulleted_list_item(line[2:])]
-            
-        # Regola 3: Elenco Numerato (es. "1. Testo")
-        match = re.match(r'^(\d+)\.\s+(.*)', line)
-        if match:
-            return [self.create_numbered_list_item(match.group(2))]
-
-        # Regola 4: Paragrafo normale (al cui interno controlliamo Grassetto ed Equazioni)
-        return [self.create_paragraph(line)]
+            case BlockType.numbered_list_item:
+                return self.create_numbered_list_item(b.text or "")
+            case BlockType.quote:
+                return self.create_quote(b.text or "")
+            case BlockType.code:
+                if not b.code:
+                    print(f"⚠️ Blocco 'code' senza campo 'code', ignorato.")
+                    return None
+                return self.create_code_block(b.code, b.language or "")
+            case BlockType.equation:
+                return self.create_equation_block(b.text or " ")
+            case BlockType.table:
+                if not b.headers or not b.rows:
+                    print(f"⚠️ Blocco 'table' senza headers o rows, ignorato.")
+                    return None
+                return self.create_table(b.headers, b.rows)
 
 
-    # =======================================================
-    # METODI SEMPLICI DI CREAZIONE BLOCCHI NOTION (Le "Foglie")
-    # =======================================================
+            case _:
+                print(f"⚠️ Tipo blocco sconosciuto '{b.type}', ignorato.")
+                return None
 
-    def _parse_rich_text(self, text: str) -> List[Dict[str, Any]]:
-        """
-        Scompone una stringa per trovare testo in **grassetto** e $equazioni inline$.
-        """
-        rich_text = []
-        # Questa regex divide il testo isolando le parti con ** e con $
-        parts = re.split(r'(\*\*.*?\*\*|\$.*?\$)', text)
-        
-        for part in parts:
-            if not part:
-                continue
-            
-            if part.startswith("**") and part.endswith("**"):
-                # È un grassetto
-                clean_text = part[2:-2]
-                rich_text.append({
-                    "type": "text",
-                    "text": {"content": clean_text[:self.MAX_TEXT_LENGTH]},
-                    "annotations": {"bold": True}
-                })
-            elif part.startswith("$") and part.endswith("$"):
-                # È un'equazione in linea
-                clean_eq = part[1:-1]
-                rich_text.append({
-                    "type": "equation",
-                    "equation": {"expression": clean_eq}
-                })
-            else:
-                # È testo normale
-                rich_text.append({
-                    "type": "text",
-                    "text": {"content": part[:self.MAX_TEXT_LENGTH]}
-                })
-                
-        return rich_text
-    def create_divider(self) -> Dict[str, Any]:
-        return {
-            "object": "block",
-            "type": "divider",
-            "divider": {}
-        }
+    # ── Creatori di blocchi Notion API ────────────────────────────────────────
 
-    def create_heading_2(self, text: str) -> Dict[str, Any]:
+    def create_heading_2(self, text: str) -> dict[str, Any]:
         return {
             "object": "block",
             "type": "heading_2",
             "heading_2": {"rich_text": self._parse_rich_text(text)}
         }
 
-    def create_heading_3(self, text: str) -> Dict[str, Any]:
+    def create_heading_3(self, text: str) -> dict[str, Any]:
         return {
             "object": "block",
             "type": "heading_3",
             "heading_3": {"rich_text": self._parse_rich_text(text)}
         }
 
-    def create_paragraph(self, text: str) -> Dict[str, Any]:
+    def create_paragraph(self, text: str) -> dict[str, Any]:
         return {
             "object": "block",
             "type": "paragraph",
             "paragraph": {"rich_text": self._parse_rich_text(text)}
         }
 
-    def create_bulleted_list_item(self, text: str) -> Dict[str, Any]:
+    def create_bulleted_list_item(self, text: str) -> dict[str, Any]:
         return {
             "object": "block",
             "type": "bulleted_list_item",
             "bulleted_list_item": {"rich_text": self._parse_rich_text(text)}
         }
 
-    def create_numbered_list_item(self, text: str) -> Dict[str, Any]:
+    def create_numbered_list_item(self, text: str) -> dict[str, Any]:
         return {
             "object": "block",
             "type": "numbered_list_item",
             "numbered_list_item": {"rich_text": self._parse_rich_text(text)}
         }
 
-    def create_equation_block(self, expression: str) -> Dict[str, Any]:
+    def create_code_block(self, code: str, language: str) -> dict[str, Any]:
+        # Notion accetta solo linguaggi specifici; se sconosciuto manda stringa vuota
+        NOTION_LANGUAGES = {
+            "abap", "arduino", "bash", "basic", "c", "clojure", "coffeescript",
+            "cpp", "csharp", "css", "dart", "diff", "docker", "elixir", "elm",
+            "erlang", "flow", "fortran", "fsharp", "gherkin", "glsl", "go",
+            "graphql", "groovy", "haskell", "html", "java", "javascript", "json",
+            "julia", "kotlin", "latex", "less", "lisp", "livescript", "lua",
+            "makefile", "markdown", "markup", "matlab", "mermaid", "nix",
+            "objective-c", "ocaml", "pascal", "perl", "php", "plain text",
+            "powershell", "prolog", "protobuf", "python", "r", "reason",
+            "ruby", "rust", "sass", "scala", "scheme", "scss", "shell",
+            "sql", "swift", "typescript", "vb.net", "verilog", "vhdl",
+            "visual basic", "webassembly", "xml", "yaml", "java/c/c++/c#",
+        }
+        safe_lang = language.lower() if language.lower() in NOTION_LANGUAGES else "plain text"
+        return {
+            "object": "block",
+            "type": "code",
+            "code": {
+                "rich_text": [{"type": "text", "text": {"content": code[:self.MAX_TEXT_LENGTH]}}],
+                "language": safe_lang,
+            }
+        }
+
+    def create_table(self, headers: list[str], rows: list[list[str]]) -> dict[str, Any]:
+        """
+        Notion vuole le tabelle con table_width e una lista di table_row children.
+        Nota: le tabelle Notion non supportano rich_text nelle celle, solo testo semplice.
+        """
+        col_count = len(headers)
+
+        # Riga di intestazione
+        header_row = {
+            "object": "block",
+            "type": "table_row",
+            "table_row": {
+                "cells": [[{"type": "text", "text": {"content": h[:self.MAX_TEXT_LENGTH]}}]
+                          for h in headers]
+            }
+        }
+
+        # Righe dati — normalizza il numero di celle
+        data_rows = []
+        for row in rows:
+            # Padding/trim per allineare al numero di colonne
+            normalized = (row + [""] * col_count)[:col_count]
+            data_rows.append({
+                "object": "block",
+                "type": "table_row",
+                "table_row": {
+                    "cells": [[{"type": "text", "text": {"content": cell[:self.MAX_TEXT_LENGTH]}}]
+                              for cell in normalized]
+                }
+            })
+
+        return {
+            "object": "block",
+            "type": "table",
+            "table": {
+                "table_width": col_count,
+                "has_column_header": True,
+                "has_row_header": False,
+                "children": [header_row] + data_rows,
+            }
+        }
+    def create_quote(self, text: str) -> dict[str, Any]:
+        return {
+            "object": "block",
+            "type": "quote",
+            "quote": {"rich_text": self._parse_rich_text(text)}
+        }
+
+
+    def create_divider(self) -> dict[str, Any]:
+        return {"object": "block", "type": "divider", "divider": {}}
+    def create_equation_block(self, expression: str) -> dict:
         return {
             "object": "block",
             "type": "equation",
-            "equation": {"expression": expression}
+            "equation": {
+                "expression": expression  # solo LaTeX puro, senza $ o $$
+            }
         }
+    # ── Rich text inline (grassetto + equazioni) ──────────────────────────────
 
-    def _parse_markdown_to_blocks(self, content: str) -> List[Dict[str, Any]]:
+    def _parse_rich_text(self, text: str) -> list[dict[str, Any]]:
+        """
+        Scompone il testo per trovare **grassetto** e $equazione inline$.
+        Le equazioni a blocco ($$...$$) vengono trattate come inline qui
+        perché sono già state gestite a livello di blocco da Gemini.
+        """
+        rich_text = []
+        parts = re.split(r'(\*\*.*?\*\*|\$\$.*?\$\$|\$.*?\$)', text)
+
+        for part in parts:
+            if not part:
+                continue
+
+            if part.startswith("**") and part.endswith("**"):
+                rich_text.append({
+                    "type": "text",
+                    "text": {"content": part[2:-2][:self.MAX_TEXT_LENGTH]},
+                    "annotations": {"bold": True}
+                })
+            elif part.startswith("$$") and part.endswith("$$"):
+                rich_text.append({
+                    "type": "equation",
+                    "equation": {"expression": part[2:-2].strip()}
+                })
+            elif part.startswith("$") and part.endswith("$"):
+                rich_text.append({
+                    "type": "equation",
+                    "equation": {"expression": part[1:-1].strip()}
+                })
+            else:
+                rich_text.append({
+                    "type": "text",
+                    "text": {"content": part[:self.MAX_TEXT_LENGTH]}
+                })
+
+        return rich_text if rich_text else [{"type": "text", "text": {"content": ""}}]
+
+    # ── Fallback Markdown (solo per Gemma, no JSON mode) ─────────────────────
+
+    def _parse_markdown_fallback(self, content: str) -> list[dict[str, Any]]:
+        """
+        Parser Markdown minimale per i modelli che non supportano JSON mode.
+        Non ha la stessa affidabilità dello schema strutturato.
+        """
         blocks = []
-        lines = content.split('\n')
-        
         in_math_block = False
-        math_content = []
+        math_lines: list[str] = []
 
-        for line in lines:
+        for line in content.split('\n'):
             stripped = line.strip()
-            if not stripped:
-                continue
+
+            # Blocchi math \[ ... \]
             if stripped == "\\[":
-                if in_math_block:
-                    # Chiude il blocco e lo salva
-                    blocks.append(self.create_equation_block("\n".join(math_content)))
-                    in_math_block = False
-                    math_content = []
-                else:
-                    # Apre il blocco
-                    in_math_block = True
-                continue
-            
-            if in_math_block:
-                math_content.append(line)
+                in_math_block = not in_math_block
+                if not in_math_block and math_lines:
+                    blocks.append({
+                        "object": "block", "type": "equation",
+                        "equation": {"expression": "\n".join(math_lines)}
+                    })
+                    math_lines = []
                 continue
 
-            # 2. Ignora righe vuote se non siamo in un blocco math
+            if in_math_block:
+                math_lines.append(line)
+                continue
+
             if not stripped:
                 continue
-            if stripped.startswith('# '):
-                blocks.append(self.create_heading_2(stripped[2:] ))
-            elif stripped.startswith('## '):
-                blocks.append(self.create_heading_3(stripped[3:]))
-            elif stripped.startswith('### '):
-                blocks.append(self.create_heading_3(stripped[4:]))
-            elif stripped.startswith('- ') or stripped.startswith('* '):
+
+            if stripped.startswith("# "):
+                blocks.append(self.create_heading_2(stripped[2:]))
+            elif stripped.startswith("## ") or stripped.startswith("### "):
+                text = re.sub(r'^#+\s+', '', stripped)
+                blocks.append(self.create_heading_3(text))
+            elif stripped.startswith("- ") or stripped.startswith("* "):
                 blocks.append(self.create_bulleted_list_item(stripped[2:]))
-            elif stripped[0].isdigit() and stripped[1:].startswith('. '):
-                # Riconosce "1. Testo", "2. Testo"
-                blocks.append(self.create_numbered_list_item(stripped[3:]))
+            elif re.match(r'^\d+\.\s', stripped):
+                text = re.sub(r'^\d+\.\s+', '', stripped)
+                blocks.append(self.create_numbered_list_item(text))
             else:
                 blocks.append(self.create_paragraph(stripped))
-                
+
         return blocks

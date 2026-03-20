@@ -104,7 +104,14 @@ class NotionLoader:
             
             with open(self.history, "w", encoding="utf-8") as f:
                 json.dump(l, f, indent=4)
-        
+    def delete_file(self,name:str):
+        l = self.get_history()
+        if name in l :
+            l.remove(name)
+            print(f"deleted {name}")
+
+            with open(self.history, "w", encoding="utf-8") as f:
+                json.dump(l, f, indent=4)
         
     def get_notion_id(self, folder_path: Path) -> str | None:
         """Cerca il file .id nella cartella e ne estrae il contenuto."""

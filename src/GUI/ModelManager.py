@@ -1,8 +1,9 @@
 from src.GUI.config import (FREE_MODELS,GEMINI_TOKEN,NOTION_SYSTEM_INSTRUCTION,
-                            TEMPERATURE,MAX_TOKENS,NOTION_RESPONSE_SCHEMA)
+                            TEMPERATURE,MAX_TOKENS)
 from google.genai import Client,types
 from time import time
 import time
+from src.GUI.NotionSchema import NotionDocument
 #questa classe serve puramente alla gestione delle risorse disponibili offerete dalle google api
 #al momento con programmazione hardcore facciamo in modo che tenga conto solo per alcuni modelli ha le risposte disponibili o meno
 
@@ -134,7 +135,7 @@ class ModelManager:
                     top_p=0.95,             # Standard per diversità
                     max_output_tokens=MAX_TOKENS, # Massimo output possibile
                     response_mime_type="application/json", # Forza JSON
-                    response_json_schema=NOTION_RESPONSE_SCHEMA,
+                    response_schema=NotionDocument,
                     system_instruction=system_instruction  # Inserisce il tuo prompt qui
                 )
             else:

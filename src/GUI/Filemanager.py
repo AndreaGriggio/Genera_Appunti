@@ -15,7 +15,10 @@ from src.GUI.DeleteSync import DeleteSyncWorker
 from src.GUI.DeleteWorker import DeleteWorker
 from src.GUI.ColorFileSystemModel import ColorFileSystemModel
 from src.GUI.SettingsDialog import open_settings
-
+from src.GUI.NotionLoader import NotionLoader
+from src.GUI.TranscribeSync import TranscribeSyncWorker
+from src.GUI.TranscribeWorker import TranscribeWorker
+from src.GUI.NotionDownloaderSync import NotionDownloaderSync
 # 2. QtGui (Componenti grafici e Modelli) -> QFileSystemModel è QUI!
 from PyQt6.QtGui import  QAction,QShortcut, QKeySequence,QDesktopServices,QPixmap
 
@@ -61,10 +64,17 @@ class FileManagerWindow(QMainWindow):
 
         # --- File System Model (La correzione è qui) ---
         self.model = ColorFileSystemModel()
+        filter = TranscribeWorker.SUPPORTED_FORMATS
+        filter = list(filter)
+        filters = []
+        for f in filter :
+            filters.append("*"+f)
         
+        filters.append("*.pdf")
+    
         self.model.setRootPath(DATAPATH) 
         self.model.setReadOnly(False)
-        self.model.setNameFilters(["*.pdf"])
+        self.model.setNameFilters(filters)
         self.model.setNameFilterDisables(False)
         self.tree_view = QTreeView()
         self.tree_view.setModel(self.model)
@@ -163,9 +173,17 @@ class FileManagerWindow(QMainWindow):
         self.btn_aggiorna = QPushButton("Aggiorna")
         self.btn_aggiorna.setFixedHeight(BTN_HEIGHT)
         self.btn_aggiorna.setStyleSheet("padding: 5px;")
-
-        #azione del bottone
+        
+                #azione del bottone
         self.btn_aggiorna.clicked.connect(self.aggiorna)
+        #--- BOTTONE SCARICA PDF ---
+        self.btn_pdf = QPushButton("Scarica PDF")
+        self.btn_pdf.setFixedHeight(BTN_HEIGHT)
+        self.btn_pdf.setStyleSheet("padding: 5px;")
+
+        self.btn_pdf.clicked.connect(self.scarica_pdf)
+
+
 
         # Aggiungi i bottoni al layout
         buttons_layout.addWidget(self.btn_pulisci)
@@ -173,6 +191,7 @@ class FileManagerWindow(QMainWindow):
         buttons_layout.addStretch() # Molla separatrice
         buttons_layout.addWidget(self.btn_crea)
         buttons_layout.addWidget(self.btn_carica)
+        buttons_layout.addWidget(self.btn_pdf)
 
         main_layout.addLayout(buttons_layout)
         self.log_area = QTextEdit()
@@ -185,6 +204,7 @@ class FileManagerWindow(QMainWindow):
         main_layout.addWidget(self.log_area)
         #--- Spazzino ---
         self.cleaner = DeleteWorker()
+        self.transcriber = None
     def aggiorna_anteprima(self, index):
         """
         Chiamato al click singolo sul TreeView.
@@ -296,58 +316,122 @@ class FileManagerWindow(QMainWindow):
         self.worker.error.connect(self.on_sync_error)
         self.worker.log.connect(self.on_log_message)
         self.worker.start()
+    
+    def scarica_pdf(self):
+        self.log_area.clear()
+        self.btn_aggiorna.setEnabled(False)
+        self.btn_carica.setEnabled(False)
+
+        file_selezionati = self.tree_view.selectedIndexes()
+        if not file_selezionati:
+            return
+
+        raw_paths = [Path(self.model.filePath(index)) for index in file_selezionati
+                    if self.model.isDir(index)]
+        file_paths = list(set(raw_paths))
+
+        instructions = {"ids": [], "outputs": []}
+
+        for f in file_paths:
+            id_path = f / ".id"
+            if not id_path.exists():
+                print(f"Cartella senza .id ignorata: {f.name}")
+                continue
+            with open(id_path, "r", encoding="utf-8") as file:
+                notion_id = file.read().strip()
+            instructions["ids"].append(notion_id)
+            instructions["outputs"].append(f / f"{f.name}.pdf")
+
+        if not instructions["ids"]:
+            return
+
+        self.worker = NotionDownloaderSync(instructions=instructions)
+        self.worker.finished.connect(self.on_sync_finished)
+        self.worker.error.connect(self.on_sync_error)
+        self.worker.log.connect(self.on_log_message)
+        self.worker.start()
+        
+
 
     def crea(self):
         print("Creazione in corso...")
         self.log_area.clear()
-        #1. Disabilito bottoni non necessari
         self.btn_pulisci.setEnabled(False)
 
-        file_da_elaborare = []
-        #prendiamo i percorsi dei selezionati
-
         file_selezionati = self.tree_view.selectedIndexes()
-        if not file_selezionati :
-            return 
-        file_paths = [self.model.filePath(index) for index in file_selezionati if not self.model.isDir(index)]
-        
-        raw_paths = [self.model.filePath(index) for index in file_selezionati if not self.model.isDir(index)]
+        if not file_selezionati:
+            return
 
-# Rimuoviamo i duplicati convertendola in set e poi di nuovo in lista
+        raw_paths = [self.model.filePath(index) for index in file_selezionati
+                    if not self.model.isDir(index)]
         file_paths = list(set(raw_paths))
-        
+
+        audio_paths = [Path(f) for f in file_paths
+                    if Path(f).suffix.lower() in TranscribeWorker.SUPPORTED_FORMATS]
+        pdf_paths   = [Path(f) for f in file_paths
+                    if Path(f).suffix.lower() == ".pdf"]
+
+        # ── Controlla storia PDF ──────────────────────────────────────────
         handler = GeminiAnswer()
-
         storia = handler.get_history()
+        file_da_elaborare = []
 
-        for file in file_paths:
+        for file in pdf_paths:
             file_name = Path(file).name
             if file_name in storia:
                 risposta = QMessageBox.question(
-                    self, 
-                    "File già elaborato", 
+                    self,
+                    "File già elaborato",
                     f"Il file '{file_name}' è già stato elaborato in passato.\nVuoi rigenerare gli appunti?",
                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
                 )
-                #E' nella storia allora decidi se elaborarlo
                 if risposta == QMessageBox.StandardButton.Yes:
-                    file_da_elaborare.append(file)
+                    file_da_elaborare.append(str(file))
+                    NotionLoader().delete_file(file_name)
                 else:
                     print(f"File {file_name} non elaborato")
-            else:#non in storia
-                file_da_elaborare.append(file)
-            
-        # 4. Avvia il Thread passando la lista filtrata!
+            else:
+                file_da_elaborare.append(str(file))
+
         prompt_utente = 'Prendi il file caricato e crea gli appunti per Notion spiegando cosa contiene il file'
-        self.worker = GeminiSyncWorker(prompt=prompt_utente, pdf_paths=file_da_elaborare)
 
-        #3. Collega i segnali del thread alle funzioni della GUI
-        self.worker.finished.connect(self.on_sync_finished)
-        self.worker.error.connect(self.on_sync_error)
-        self.worker.log.connect(self.on_log_message)
+        # ── Caso 1: ci sono audio ────────────────────────────────────────
+        if audio_paths:
+            if not self.transcriber:
+                self.transcriber = TranscribeWorker()
 
-        #4. Avvia il thread
-        self.worker.start()
+            self.on_log_message(f"🎙️ Trovati {len(audio_paths)} file audio, avvio trascrizione...")
+
+            self.transcribe_worker = TranscribeSyncWorker(
+                is_loaded=self.transcriber is not None,
+                selected_files=audio_paths,
+                worker=self.transcriber
+            )
+
+            def on_transcription_done():
+                txt_paths = [str(p.with_suffix(".txt")) for p in audio_paths]
+                tutti = file_da_elaborare + txt_paths
+                if tutti:
+                    self.worker = GeminiSyncWorker(prompt=prompt_utente, paths=tutti)
+                    self.worker.finished.connect(self.on_sync_finished)
+                    self.worker.error.connect(self.on_sync_error)
+                    self.worker.log.connect(self.on_log_message)
+                    self.worker.start()
+                else:
+                    self.on_sync_finished()
+
+            self.transcribe_worker.finished.connect(on_transcription_done)
+            self.transcribe_worker.error.connect(self.on_sync_error)
+            self.transcribe_worker.log.connect(self.on_log_message)
+            self.transcribe_worker.start()
+
+        # ── Caso 2: solo PDF ─────────────────────────────────────────────
+        elif file_da_elaborare:
+            self.worker = GeminiSyncWorker(prompt=prompt_utente, paths=file_da_elaborare)
+            self.worker.finished.connect(self.on_sync_finished)
+            self.worker.error.connect(self.on_sync_error)
+            self.worker.log.connect(self.on_log_message)
+            self.worker.start()
 
 
         
