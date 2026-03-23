@@ -49,13 +49,6 @@ class NotionLoader:
     
         risposta_name = answer_path.name #prendo il nome della risposta da caricare
 
-
-        storia  = self.get_history()
-
-        for name in storia: #Se sta già all'interno delle risposte processate allora non si processa
-            if name == risposta_name:
-                print("Gia caricata!")
-                return False
             
         self.content = self.get_file(answer_path)
 

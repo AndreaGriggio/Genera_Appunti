@@ -51,3 +51,4 @@ build.spec
 src.zip
 *.deb
 *.1
+*.gz

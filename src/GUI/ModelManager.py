@@ -129,7 +129,7 @@ class ModelManager:
         # --- CASO 1: GEMINI (Supporto JSON Nativo + Config Avanzata) ---
         if model_info["config"]:
             if force_json:
-                print(f"⚙️ {model_name}: Configuro JSON Mode per Appunti (Temp 0.2).")
+                print(f"⚙️ {model_name}: Configuro JSON Mode per Appunti temp = {TEMPERATURE}.")
                 return types.GenerateContentConfig(
                     temperature=TEMPERATURE,        # La tua scelta ottima per appunti tecnici
                     top_p=0.95,             # Standard per diversità

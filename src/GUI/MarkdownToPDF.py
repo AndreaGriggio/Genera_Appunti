@@ -1,59 +1,70 @@
-import markdown
-import pdfkit
-from pathlib import Path
+import pypandoc
+import pytinytex
+import re
+import tempfile
+
 
 class MarkdownToPDF:
-    HTML_TEMPLATE = """<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <script>
-        MathJax = {{
-            tex: {{ inlineMath: [['$','$']], displayMath: [['$$','$$']] }}
-        }};
-    </script>
-    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
-    <style>
-        body {{ font-family: Arial, sans-serif; max-width: 800px;
-               margin: 40px auto; line-height: 1.6; }}
-        code {{ background: #f4f4f4; padding: 2px 6px; border-radius: 3px; }}
-        pre  {{ background: #f4f4f4; padding: 16px; border-radius: 6px; }}
-        blockquote {{ border-left: 4px solid #ccc; margin: 0; padding-left: 16px; }}
-        table {{ border-collapse: collapse; width: 100%; }}
-        th, td {{ border: 1px solid #ddd; padding: 8px; }}
-        img {{ max-width: 100%; }}
-    </style>
-</head>
-<body>{content}</body>
-</html>"""
+     
+    """ E' una classe che utilizza pandoc per convertire i file markdown presi da notion in pdf 
+        E' necessario per utilizzarla avere installati all'interno del proprio computer anche tinytex con tutte i pacchetti latex necessari
+        Per processare effettivamente i documenti markdown
+    """
+    LATEX_HEADER = r"""        
+        \usepackage{amsmath}
+        \usepackage{amssymb}
+        \usepackage{cancel}
+        \usepackage{mathtools}
+        """
+    def _fix_notion_shortcuts(self, text: str) -> str:
+        """Sostituisce shortcut Notion non validi in LaTeX standard"""
+        replacements = {
+            r'\R': r'\mathbb{R}',
+            r'\N': r'\mathbb{N}',
+            r'\Z': r'\mathbb{Z}',
+            r'\C': r'\mathbb{C}',
+            r'\Q': r'\mathbb{Q}',
+        }
+        for wrong, correct in replacements.items():
+            text = text.replace(wrong, correct)
+        return text
 
-    OPTIONS = {
-        "enable-local-file-access": "",
-        "javascript-delay": "3000",
-        "no-stop-slow-scripts": "",
-        "encoding": "UTF-8",
-        "margin-top":    "15mm",
-        "margin-bottom": "15mm",
-        "margin-left":   "15mm",
-        "margin-right":  "15mm",
-        "page-size": "A4",
-    }
+    def _clean_math_blocks(self, text: str) -> str:
+        """Rimuove righe vuote all'interno dei blocchi $$ ... $$"""
+        def remove_blank_lines(match):
+            inner = match.group(1)
+            cleaned = re.sub(r'\n\s*\n', '\n', inner)
+            return f"$$\n{cleaned.strip()}\n$$"
+        
+        return re.sub(r'\$\$(.*?)\$\$', remove_blank_lines, text, flags=re.DOTALL)
 
-    def convert(self, markdown_text: str, output_path: str | Path) -> bool:
+    def convert(self, markdown_text: str, output_path: str ) -> bool:
         if not markdown_text.strip():
-            print("❌ Markdown vuoto, PDF non generato.")
             return False
-
-        html_content = markdown.markdown(
-            markdown_text,
-            extensions=["fenced_code", "tables", "nl2br", "sane_lists"]
-        )
-        full_html = self.HTML_TEMPLATE.format(content=html_content)
+        
+        markdown_text = self._fix_notion_shortcuts(markdown_text)
+        markdown_text = self._clean_math_blocks(markdown_text)  # ← aggiungi
+        markdown_text =  re.sub(r'\$\s+([^\$]+?)\s+\$', r'$\1$', markdown_text)
+        
+        with tempfile.NamedTemporaryFile(
+            mode='w', suffix='.tex', delete=False, encoding='utf-8'
+        ) as f:
+            f.write(self.LATEX_HEADER)
+            header_path = f.name
 
         try:
-            pdfkit.from_string(full_html, str(output_path), options=self.OPTIONS)
-            print(f"✅ PDF generato: {output_path}")
+            pypandoc.convert_text(
+                markdown_text,
+                'pdf',
+                format='md',
+                outputfile=str(output_path),
+                extra_args=[
+                    '--pdf-engine=xelatex',
+                    f'--include-in-header={header_path}',
+                    '--pdf-engine-opt=-interaction=nonstopmode',
+                ]
+            )
             return True
         except Exception as e:
-            print(f"❌ Errore pdfkit: {e}")
+            print(f"Errore Pandoc: {e}")
             return False

@@ -350,6 +350,7 @@ class FileManagerWindow(QMainWindow):
         self.worker.error.connect(self.on_sync_error)
         self.worker.log.connect(self.on_log_message)
         self.worker.start()
+        self.reset_gui_state()
         
 
 

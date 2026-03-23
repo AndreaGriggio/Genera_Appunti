@@ -4,27 +4,20 @@ import io
 from pathlib import Path
 
 class NotionToMarkdown:
-    def __init__(self, formula_dir: Path):
-        self.formula_dir = formula_dir
-        self.formula_dir.mkdir(parents=True, exist_ok=True)
-        self._formula_counter = 0
-
     def _render_formula(self, expression: str, inline: bool = False) -> str:
         """Renderizza la formula come PNG e restituisce il tag markdown."""
-        self._formula_counter += 1
-        filename = f"formula_{self._formula_counter}.png"
-        output_path = self.formula_dir / filename
 
-        success = self.formula_to_png(expression, output_path)
-        if success:
-            uri = output_path.as_uri()
-            if inline:
-                return f"![]({uri})"
-            else:
-                return f"\n![]({uri})\n"
+        if inline :
+            expression.replace(r"\{","{")
+            expression.replace(r"\}","}")
+            
+            return f"${expression}$"
         else:
-            # Fallback testo grezzo se la formula non si renderizza
-            return f"`{expression}`"
+        # Se contiene \\ va wrappato in aligned
+            if r'\\' in expression:
+                expression = f"\\begin{{aligned}}\n{expression}\n\\end{{aligned}}"
+        return f"$$\n{expression}\n$$"
+        
     def convert(self, blocks: list[dict]) -> str:
         lines = []
         self._convert_blocks_recursive(blocks, lines)
@@ -50,7 +43,10 @@ class NotionToMarkdown:
                     content = f"**{content}**"
                 result += content
             elif t["type"] == "equation":
-                return self._render_formula(t['equation']['expression'], inline=True)
+                expr = t['equation']['expression']
+
+                expr = expr.replace(r'\_', '_').replace(r'\$', '$')
+                result += self._render_formula(expr, inline=True)
         return result
 
     def _convert_block(self, block: dict) -> str | None:
@@ -111,23 +107,3 @@ class NotionToMarkdown:
                 return "\n\n".join(lines) if lines else None
             case _:
                 return None
-    def formula_to_png(self,expression: str, output_path: Path) -> bool:
-        """Converte una formula LaTeX in PNG usando matplotlib."""
-        try:
-            fig = plt.figure(figsize=(0.01, 0.01))
-            fig.text(0, 0, f"${expression}$", fontsize=14)
-            
-            fig.savefig(
-                output_path,
-                dpi=150,
-                bbox_inches="tight",
-                pad_inches=0.1,
-                transparent=True,
-                format="png"
-            )
-            plt.close(fig)
-            return True
-        except Exception as e:
-            print(f"⚠️ Formula non renderizzata: {e}")
-            plt.close()
-            return False
