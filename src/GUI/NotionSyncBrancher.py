@@ -15,7 +15,7 @@ class NotionSyncWorker(QThread):
         Usa i segnali.
         """
         try:
-            self.log.emit("⏳ Inizio sincronizzazione con Notion...")
+            self.log.emit("Inizio sincronizzazione con Notion...")
             
             # Istanzia la tua classe logica
             brancher = NotionBrancher()
@@ -25,7 +25,7 @@ class NotionSyncWorker(QThread):
             updater = FolderUpdater()
             updater.update()
             
-            self.log.emit("✅ Aggiornamento completato!")
+            self.log.emit("Aggiornamento completato!")
             self.finished.emit()
             
         except Exception as e:

@@ -105,7 +105,7 @@ class _ModelsTab(QWidget):
             self._table.setCellWidget(row, 3, self._make_checkbox_cell(m.get("available", True)))
 
     def _fetch_models(self):
-        self._status.setText("⏳ Recupero modelli in corso...")
+        self._status.setText("Recupero modelli in corso...")
 
         saved = _load_settings()
         api_key = saved.get("GEMINI_TOKEN", "")
@@ -136,10 +136,10 @@ class _ModelsTab(QWidget):
 
             models = _sort_models(models)
             self._populate_table(models)
-            self._status.setText(f"✅ {len(models)} modelli trovati.")
+            self._status.setText(f"{len(models)} modelli trovati.")
 
         except Exception as e:
-            self._status.setText(f"❌ Errore: {e}")
+            self._status.setText(f"Errore: {e}")
 
     def _reset_default(self):
         from src.GUI.config import FREE_MODELS
@@ -323,13 +323,13 @@ class _ColorsTab(QWidget):
         layout.addWidget(sep)
 
         self._loaded = _ColorPicker(
-            "🟢  File caricato su Notion",
+            "File caricato su Notion",
             settings.get("COLOR_LOADED", _DEFAULTS["COLOR_LOADED"])
         )
         layout.addWidget(self._loaded)
 
         self._created = _ColorPicker(
-            "🟡  File con appunti generati (non ancora su Notion)",
+            "File con appunti generati (non ancora su Notion)",
             settings.get("COLOR_CREATED", _DEFAULTS["COLOR_CREATED"])
         )
         layout.addWidget(self._created)
@@ -489,7 +489,7 @@ class _ApiKeysTab(QWidget):
         layout.addLayout(form)
 
         # Toggle mostra/nascondi
-        toggle_btn = QPushButton("👁  Mostra / Nascondi chiavi")
+        toggle_btn = QPushButton("Mostra / Nascondi chiavi")
         toggle_btn.setFixedWidth(200)
         toggle_btn.setCheckable(True)
         toggle_btn.toggled.connect(self._toggle_visibility)
@@ -534,7 +534,7 @@ class SettingsDialog(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("⚙️  Impostazioni")
+        self.setWindowTitle("Impostazioni")
         self.setMinimumSize(620, 520)
         self.setModal(True)   # blocca la finestra padre
 
@@ -572,10 +572,10 @@ class SettingsDialog(QDialog):
         self._tab_models = _ModelsTab(self._data)
 
         for tab_widget, label in [
-            (self._tab_colors, "🎨  Colori"),
-            (self._tab_params, "🤖  Modello"),
-            (self._tab_keys,   "🔑  Chiavi API"),
-            (self._tab_models, "🧠  Modelli AI"), 
+            (self._tab_colors, "Colori"),
+            (self._tab_params, "Modello"),
+            (self._tab_keys,   "Chiavi API"),
+            (self._tab_models, "Modelli AI"), 
         ]:
             scroll = QScrollArea()
             scroll.setWidgetResizable(True)

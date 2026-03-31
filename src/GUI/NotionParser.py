@@ -31,10 +31,10 @@ class NotionParser:
         try:
             doc = NotionDocument.model_validate_json(content)
         except ValidationError as e:
-            print(f"❌ JSON non conforme allo schema NotionDocument:\n{e}")
+            print(f"JSON non conforme allo schema NotionDocument:\n{e}")
             return "Senza Titolo", []
         except Exception as e:
-            print(f"❌ Errore di parsing JSON generico: {e}")
+            print(f"Errore di parsing JSON generico: {e}")
             return "Senza Titolo", []
 
         blocks: list[dict[str, Any]] = []
@@ -70,20 +70,20 @@ class NotionParser:
                 return self.create_quote(b.text or "")
             case BlockType.code:
                 if not b.code:
-                    print(f"⚠️ Blocco 'code' senza campo 'code', ignorato.")
+                    print(f"Blocco 'code' senza campo 'code', ignorato.")
                     return None
                 return self.create_code_block(b.code, b.language or "")
             case BlockType.equation:
                 return self.create_equation_block(b.text or " ")
             case BlockType.table:
                 if not b.headers or not b.rows:
-                    print(f"⚠️ Blocco 'table' senza headers o rows, ignorato.")
+                    print(f"Blocco 'table' senza headers o rows, ignorato.")
                     return None
                 return self.create_table(b.headers, b.rows)
 
 
             case _:
-                print(f"⚠️ Tipo blocco sconosciuto '{b.type}', ignorato.")
+                print(f"Tipo blocco sconosciuto '{b.type}', ignorato.")
                 return None
 
     # ── Creatori di blocchi Notion API ────────────────────────────────────────

@@ -29,7 +29,7 @@ class FolderUpdater:
         # 3. Cancella le cartelle locali che non esistono più in Notion
         self._remove_obsolete(valid_paths)
  
-        print("\n✅ Aggiornamento cartelle completato.")
+        print("\nAggiornamento cartelle completato.")
 
     def _collect_valid_paths(self, nodo: dict, parent_path: Path, valid: set[Path]):
         """
@@ -52,14 +52,14 @@ class FolderUpdater:
                 path.mkdir(parents=True, exist_ok=True)
                 print(f"📁 Creata cartella: {path.name}")
             except Exception as e:
-                print(f"❌ Errore creazione {path}: {e}")
+                print(f"Errore creazione {path}: {e}")
                 return
  
         try:
             with open(path / ".id", "w", encoding="utf-8") as f:
                 f.write(notion_id)
         except Exception as e:
-            print(f"⚠️ Errore scrittura .id in {path.name}: {e}")
+            print(f"Errore scrittura .id in {path.name}: {e}")
     def recursive_exploration(self, nodo, parent_path):
         """
         Esplora ricorsivamente l'albero.
@@ -95,9 +95,9 @@ class FolderUpdater:
         if not path.exists():
             try:
                 path.mkdir(parents=True, exist_ok=True)
-                print(f"📁 Creata cartella: {path.name}")
+                print(f"Creata cartella: {path.name}")
             except Exception as e:
-                print(f"❌ Errore creazione {path}: {e}")
+                print(f"Errore creazione {path}: {e}")
                 return
 
         # 2. Crea il file nascosto con l'ID
@@ -109,7 +109,7 @@ class FolderUpdater:
             with open(file_id_path, "w", encoding="utf-8") as f:
                 f.write(notion_id)
         except Exception as e:
-            print(f"⚠️ Errore scrittura .id in {path.name}: {e}")
+            print(f"Errore scrittura .id in {path.name}: {e}")
     
     def _remove_obsolete(self, valid_paths: set[Path]):
         """
@@ -127,9 +127,9 @@ class FolderUpdater:
             if item not in valid_paths:
                 try:
                     shutil.rmtree(item)
-                    print(f"🗑️  Cartella rimossa (non più in Notion): {item.name}")
+                    print(f"Cartella rimossa (non più in Notion): {item.name}")
                 except Exception as e:
-                    print(f"⚠️ Errore rimozione {item.name}: {e}")
+                    print(f"Errore rimozione {item.name}: {e}")
             else:
                 # Controlla ricorsivamente anche le sottocartelle
                 self._remove_obsolete_recursive(item, valid_paths)
@@ -145,9 +145,9 @@ class FolderUpdater:
                     for file in item.iterdir():
                         file.unlink()
                     item.rmdir()
-                    print(f"🗑️  Sottocartella rimossa: {item.name}")
+                    print(f"Sottocartella rimossa: {item.name}")
                 except Exception as e:
-                    print(f"⚠️ Errore rimozione {item.name}: {e}")
+                    print(f"Errore rimozione {item.name}: {e}")
             else:
                 self._remove_obsolete_recursive(item, valid_paths)
 

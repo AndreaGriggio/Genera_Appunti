@@ -16,16 +16,16 @@ class NotionSyncLoader(QThread):
             
             # Il ciclo for lo facciamo QUI dentro al thread!
             for index, path in enumerate(self.answer_paths, start=1):
-                self.log.emit(f"⏳ [{index}/{totali}] Sincronizzazione di: {path.name}...")
+                self.log.emit(f"[{index}/{totali}] Sincronizzazione di: {path.name}...")
                 
                 success = loader.load(path)
                 
                 if success:
-                    self.log.emit(f"✅ {path.name} caricato con successo!")
+                    self.log.emit(f"{path.name} caricato con successo!")
                 else:
-                    self.log.emit(f"⚠️ {path.name} ignorato o fallito (vedi log).")
+                    self.log.emit(f"{path.name} ignorato o fallito (vedi log).")
             
-            self.log.emit("🎉 Tutti i caricamenti terminati!")
+            self.log.emit("Tutti i caricamenti terminati!")
             self.finished.emit()
             
         except Exception as e:

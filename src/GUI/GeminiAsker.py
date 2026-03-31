@@ -29,7 +29,7 @@ class GeminiAsker :
         # Chiediamo al manager il miglior modello disponibile ORA
         l= self.manager.get_best_model(needs_pdf=pdf, needs_json=is_json)
         if not l:
-            print("❌ Nessun modello disponibile o risorse esaurite su tutti i modelli.")   
+            print("Nessun modello disponibile o risorse esaurite su tutti i modelli.")   
             return None
 
         #Campi di ritorno del model manager 
@@ -44,10 +44,10 @@ class GeminiAsker :
             json = False
         # Se il manager restituisce None, significa che abbiamo finito i modelli (o i tentativi)
         if model_name is None:
-            print("❌ Nessun modello disponibile o risorse esaurite su tutti i modelli.")
+            print("Nessun modello disponibile o risorse esaurite su tutti i modelli.")
             return None
 
-        print(f"🤖 Tentativo con modello: {model_name}")
+        print(f"Tentativo con modello: {model_name}")
 
         # 2. CONFIGURAZIONE
         config = self.manager.get_config(model_name, force_json=is_json,system_instruction=NOTION_SYSTEM_INSTRUCTION)
@@ -69,7 +69,7 @@ class GeminiAsker :
                     testo = path_obj.read_text(encoding="utf-8")
                     contents.append(testo)
             except Exception as e:
-                print(f"❌ Errore caricamento file {path}: {e}")
+                print(f"Errore caricamento file {path}: {e}")
                 return None
  
         contents.append(prompt)
@@ -87,21 +87,21 @@ class GeminiAsker :
             error_code = e.code if hasattr(e, "code") else 0
  
             if error_code == 429:
-                print(f"⚠️ Quota esaurita per {model_name}. Cambio modello...")
+                print(f"Quota esaurita per {model_name}. Cambio modello...")
                 self.manager.report_error(model_name, error_code)
                 return self.ask(prompt, path, is_json)
  
             elif error_code >= 500:
-                print(f"⚠️ Errore Server Google ({error_code}). Riprovo...")
+                print(f"Errore Server Google ({error_code}). Riprovo...")
                 self.manager.report_error(model_name, error_code)
                 return self.ask(prompt, path, is_json)
  
             else:
-                print(f"❌ Errore non recuperabile ({error_code}): {e}")
+                print(f"Errore non recuperabile ({error_code}): {e}")
                 return None
  
         except Exception as e:
-            print(f"❌ Errore generico imprevisto: {e}")
+            print(f"Errore generico imprevisto: {e}")
             return None
 
 

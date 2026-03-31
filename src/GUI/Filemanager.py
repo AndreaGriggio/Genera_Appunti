@@ -446,7 +446,7 @@ class FileManagerWindow(QMainWindow):
             self.worker.log.connect(self.on_log_message)
             self.worker.start()
         
-        self.on_log_message(f"🎙️ Trovati {len(audio_paths)} file audio, avvio trascrizione...")
+        self.on_log_message(f"Trovati {len(audio_paths)} file audio, avvio trascrizione...")
 
         # ── Caso 2: solo PDF ─────────────────────────────────────────────
         if audio_paths:

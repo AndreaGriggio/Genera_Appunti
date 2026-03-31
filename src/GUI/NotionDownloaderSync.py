@@ -38,7 +38,7 @@ class NotionDownloaderSync(QThread):
                 self.markdown_converter.convert(markdown_text, str(output_pdf))
                 self.notion_converter = None
 
-            self.log.emit("✅ Export completato!")
+            self.log.emit("Export completato!")
             self.finished.emit()
 
         except Exception as e:

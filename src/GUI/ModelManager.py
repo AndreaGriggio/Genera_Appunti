@@ -26,7 +26,7 @@ class ModelManager:
             
             for m in self.models:
                 if m["name"] not in remote_names and f"models/{m['name']}" not in remote_names:
-                    print(f"💀 Modello '{m['name']}' inesistente. Rimosso per sempre.")
+                    print(f"Modello '{m['name']}' inesistente. Rimosso per sempre.")
                     m["available"] = False
         except Exception:
             pass
@@ -89,7 +89,7 @@ class ModelManager:
             for model in self.models:
                 if model["name"] == model_name:
                     model["available"] = True
-                    print(f"♻️  Il modello {model_name} è tornato disponibile!")
+                    print(f"Il modello {model_name} è tornato disponibile!")
 
                     break
 
@@ -100,7 +100,7 @@ class ModelManager:
         - Altro (404, ecc): Ban permanente.
         """
         if error_code == 429:
-            print(f"⏳ Modello {model_name} in pausa per {self.RATE_LIMIT_COOLDOWN}s (Rate Limit).")
+            print(f"Modello {model_name} in pausa per {self.RATE_LIMIT_COOLDOWN}s (Rate Limit).")
             # Imposta il timestamp nel futuro quando sarà sbloccato
             self.cooldowns[model_name] = time.time() + self.RATE_LIMIT_COOLDOWN
 
@@ -109,7 +109,7 @@ class ModelManager:
                     model["available"] = False
                     break
         else:
-            print(f"❌ Modello {model_name} rotto (Err {error_code}). Disabilitato permanentemente.")
+            print(f"Modello {model_name} rotto (Err {error_code}). Disabilitato permanentemente.")
             # Trova il modello e settalo available=False per sempre
             for m in self.models:
                 if m["name"] == model_name:
@@ -129,7 +129,7 @@ class ModelManager:
         # --- CASO 1: GEMINI (Supporto JSON Nativo + Config Avanzata) ---
         if model_info["config"]:
             if force_json:
-                print(f"⚙️ {model_name}: Configuro JSON Mode per Appunti temp = {TEMPERATURE}.")
+                print(f"{model_name}: Configuro JSON Mode per Appunti temp = {TEMPERATURE}.")
                 return types.GenerateContentConfig(
                     temperature=TEMPERATURE,        # La tua scelta ottima per appunti tecnici
                     top_p=0.95,             # Standard per diversità
@@ -140,7 +140,7 @@ class ModelManager:
                 )
             else:
                 # Configurazione standard per chat generica
-                print(f"⚙️ {model_name}: Configuro Chat Standard.")
+                print(f"{model_name}: Configuro Chat Standard.")
                 return types.GenerateContentConfig(
                     temperature=TEMPERATURE,
                     system_instruction=system_instruction
@@ -148,7 +148,7 @@ class ModelManager:
         
         # --- CASO 2: GEMMA (Solo Testo, parametri limitati) ---
         # Gemma via API spesso crasha se gli passi system_instruction o mime_type json
-        print(f"⚙️ {model_name}: Configurazione Base (Gemma).")
+        print(f"{model_name}: Configurazione Base (Gemma).")
         return types.GenerateContentConfig(
             temperature=TEMPERATURE,
             max_output_tokens=MAX_TOKENS

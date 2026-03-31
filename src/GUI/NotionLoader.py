@@ -64,7 +64,7 @@ class NotionLoader:
         
         id = self.get_notion_id(answer_path.parent)
         if not id:
-            print(f"❌ Impossibile trovare l'ID della pagina Notion per {risposta_name}.")
+            print(f"Impossibile trovare l'ID della pagina Notion per {risposta_name}.")
             return False
 
         success = self.create_page_and_upload(id, page_title, blocks)
@@ -72,7 +72,7 @@ class NotionLoader:
 
         if success:
             self.update_history(risposta_name)
-            print(f"✅ File {risposta_name} caricato con successo!")
+            print(f"File {risposta_name} caricato con successo!")
             return True
             
         return False

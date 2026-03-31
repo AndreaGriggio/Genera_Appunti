@@ -45,7 +45,7 @@ class NotionBrancher:
             except APIResponseError as e:
                 if e.status in [500, 502, 503, 504, 429]:
                     wait = 2 ** tentativi
-                    print(f"⚠️ Errore Notion {e.status}. Riprovo tra {wait}s...")
+                    print(f"Errore Notion {e.status}. Riprovo tra {wait}s...")
                     time.sleep(wait)
                     tentativi += 1
                 else:
@@ -102,7 +102,7 @@ class NotionBrancher:
           senza bloccare altri thread. Zero deadlock per costruzione.
         - Il semaforo limita solo le chiamate HTTP, non i thread stessi.
         """
-        print(f"{'  ' * livello}📂 {titolo}")
+        print(f"{'  ' * livello} {titolo}")
 
         children_info = self._get_child_pages(page_id)
 
@@ -128,7 +128,7 @@ class NotionBrancher:
                             child["id"], child["titolo"], livello + 1
                         )
                     except Exception as e:
-                        print(f"❌ Errore nodo {child['id']} ({child['titolo']}): {e}")
+                        print(f"Errore nodo {child['id']} ({child['titolo']}): {e}")
                         results[child["id"]] = {
                             "id":       child["id"],
                             "titolo":   child["titolo"],
@@ -152,7 +152,7 @@ class NotionBrancher:
             if c["has_children"]:
                 children_nodes.append(results[c["id"]])
             else:
-                print(f"{'  ' * (livello + 1)}📄 {c['titolo']}")
+                print(f"{'  ' * (livello + 1)} {c['titolo']}")
                 children_nodes.append({
                     "id":       c["id"],
                     "titolo":   c["titolo"],
@@ -170,7 +170,7 @@ class NotionBrancher:
     # ── Entry point ───────────────────────────────────────────────────────────
 
     def get_notion_branching(self):
-        print(f"🔍 Inizio scansione da ID: {self.BASE_ID}")
+        print(f"Inizio scansione da ID: {self.BASE_ID}")
 
         if not self.BASE_ID:
             raise ValueError("BASE_ID non è definito.")
@@ -195,7 +195,7 @@ class NotionBrancher:
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(risultato, f, indent=4, ensure_ascii=False)
 
-        print(f"✅ Albero salvato in: {output_path}")
+        print(f"Albero salvato in: {output_path}")
 
 
 if __name__ == "__main__":
@@ -203,4 +203,4 @@ if __name__ == "__main__":
         brancher = NotionBrancher()
         brancher.get_notion_branching()
     except Exception as e:
-        print(f"❌ Errore fatale: {e}")
+        print(f" Errore fatale: {e}")

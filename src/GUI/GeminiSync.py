@@ -24,7 +24,7 @@ class GeminiSyncWorker(QThread):
     # RUN NON ACCETTA ARGOMENTI
     def run(self):
         try:
-            self.log.emit(f"⏳ Inizio generazione per {len(self.pdf_paths)} file...")
+            self.log.emit(f"Inizio generazione per {len(self.pdf_paths)} file...")
             
             asker = GeminiAsker()
             answer_handler = GeminiAnswer()
@@ -40,11 +40,11 @@ class GeminiSyncWorker(QThread):
                 suffix = path_obj.suffix.lower()
 
                 if suffix not in GeminiSyncWorker.PDF_SUFFIXES | GeminiSyncWorker.TEXT_SUFFIXES:
-                    self.log.emit(f"⏭️ [{index}/{totali}] Formato non supportato, ignorato: {nome_file}")
+                    self.log.emit(f"[{index}/{totali}] Formato non supportato, ignorato: {nome_file}")
                     self.progress.emit(index, totali)
                     continue
  
-                self.log.emit(f"📄 [{index}/{totali}] Elaborazione di: {nome_file}...")
+                self.log.emit(f"[{index}/{totali}] Elaborazione di: {nome_file}...")
 
                 # 1. Chiedi a Gemini
                 l = asker.ask(
@@ -65,14 +65,14 @@ class GeminiSyncWorker(QThread):
                 # 2. Salva la risposta se c'è
                 if response.text:
                     answer_handler.save_answer(response.text, path,self.json_mode)
-                    self.log.emit(f"✅ Salvato con successo: {nome_file}")
+                    self.log.emit(f"Salvato con successo: {nome_file}")
                 else:
-                    self.log.emit(f"⚠️ Errore o modello esaurito per: {nome_file}")
+                    self.log.emit(f"Errore o modello esaurito per: {nome_file}")
                 
                 # Aggiorna la barra di caricamento nella GUI
                 self.progress.emit(index, totali)
             
-            self.log.emit("🎉 Creazione  terminata!")
+            self.log.emit("Creazione  terminata!")
             self.finished.emit()
             
         except Exception as e:

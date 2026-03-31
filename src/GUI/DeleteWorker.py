@@ -119,12 +119,12 @@ class DeleteWorker:
                 if json_path.exists(): json_path.unlink()
                 if txt_path.exists(): txt_path.unlink()
             except Exception as e:
-                print(f"⚠️ Errore durante la rimozione fisica di {stem}: {e}")
+                print(f"Errore durante la rimozione fisica di {stem}: {e}")
                 
         # Ora aggiorno le liste rimuovendo i "fantasmi"
         h1, h2 = self.get_histories()
         self.update_history(must_remove_stems, h1, h2)
-        print(f"🧹 Pulizia specifica completata per: {must_remove_stems}")
+        print(f"Pulizia specifica completata per: {must_remove_stems}")
 if __name__ == "__main__":
     dw = DeleteWorker()
     dw.delete()
