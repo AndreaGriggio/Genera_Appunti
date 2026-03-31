@@ -1,12 +1,15 @@
 import sys
 from pathlib import Path
 import fitz
+import time
 # 1. Widgets (Elementi visivi: Finestre, Bottoni, Layout)
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, 
     QHBoxLayout, QPushButton, QTreeView, 
     QHeaderView, QMessageBox, QLabel,QSplitter,QScrollArea,QTextEdit
 )
+import multiprocessing
+
 from src.GUI.NotionSyncBrancher import NotionSyncWorker
 from src.GUI.GeminiSync import GeminiSyncWorker
 from src.GUI.GeminiAnswer import GeminiAnswer
@@ -19,12 +22,14 @@ from src.GUI.NotionLoader import NotionLoader
 from src.GUI.TranscribeSync import TranscribeSyncWorker
 from src.GUI.TranscribeWorker import TranscribeWorker
 from src.GUI.NotionDownloaderSync import NotionDownloaderSync
+from src.GUI.TranscribeModelLoaderWorker import TranscribeModelLoaderWorker
+from src.GUI.whisperProcess import whisper_lazy_engine
 # 2. QtGui (Componenti grafici e Modelli) -> QFileSystemModel è QUI!
 from PyQt6.QtGui import  QAction,QShortcut, QKeySequence,QDesktopServices,QPixmap
 
 
 # 3. QtCore (Funzionalità base non grafiche: Directory, Threading)
-from PyQt6.QtCore import Qt, QDir,QUrl,QByteArray
+from PyQt6.QtCore import Qt, QDir,QUrl,QByteArray,QTimer
 from src.GUI.config import DATAPATH,BTN_HEIGHT
 PREVIEW_PAGES = 3
 PREVIEW_WIDTH = 320
@@ -202,9 +207,41 @@ class FileManagerWindow(QMainWindow):
             "border: 1px solid #444;"
         )
         main_layout.addWidget(self.log_area)
+
+        self.task_queue = multiprocessing.Queue()
+        self.result_queue = multiprocessing.Queue()
+        self.whisper_process = multiprocessing.Process(
+            target=whisper_lazy_engine, 
+            args=(self.task_queue, self.result_queue),
+            daemon=True
+        )
+        self.whisper_process.start()
+        
+        # Timer che controlla i risultati (già visto)
+        self.monitor_timer = QTimer()
+        self.monitor_timer.timeout.connect(self.check_whisper_results)
+        self.monitor_timer.start(200)
         #--- Spazzino ---
         self.cleaner = DeleteWorker()
         self.transcriber = None
+
+    def check_whisper_results(self):
+        while not self.result_queue.empty():
+            msg = self.result_queue.get()
+            
+            if msg["type"] == "log":
+                self.on_log_message(msg["content"])
+        
+
+                
+            elif msg["type"] == "all_done":
+                self.on_log_message("✅ Trascrizione completata. Avvio analisi con Gemini...")
+                # ORA chiamiamo Gemini con la lista completa (PDF originali + TXT generati)
+                self.on_transcription_done()
+                
+            elif msg["type"] == "error":
+                self.on_sync_error(msg["content"])
+
     def aggiorna_anteprima(self, index):
         """
         Chiamato al click singolo sul TreeView.
@@ -351,13 +388,18 @@ class FileManagerWindow(QMainWindow):
         self.worker.log.connect(self.on_log_message)
         self.worker.start()
         self.reset_gui_state()
-        
+    
 
+    def load_model(self)->None:
+        self.task_queue.put({"paths":self.audio})
+        
+    
 
     def crea(self):
         print("Creazione in corso...")
         self.log_area.clear()
         self.btn_pulisci.setEnabled(False)
+        self.btn_crea.setEnabled(False)
 
         file_selezionati = self.tree_view.selectedIndexes()
         if not file_selezionati:
@@ -397,43 +439,37 @@ class FileManagerWindow(QMainWindow):
         prompt_utente = 'Prendi il file caricato e crea gli appunti per Notion spiegando cosa contiene il file'
 
         # ── Caso 1: ci sono audio ────────────────────────────────────────
-        if audio_paths:
-            if not self.transcriber:
-                self.transcriber = TranscribeWorker()
-
-            self.on_log_message(f"🎙️ Trovati {len(audio_paths)} file audio, avvio trascrizione...")
-
-            self.transcribe_worker = TranscribeSyncWorker(
-                is_loaded=self.transcriber is not None,
-                selected_files=audio_paths,
-                worker=self.transcriber
-            )
-
-            def on_transcription_done():
-                txt_paths = [str(p.with_suffix(".txt")) for p in audio_paths]
-                tutti = file_da_elaborare + txt_paths
-                if tutti:
-                    self.worker = GeminiSyncWorker(prompt=prompt_utente, paths=tutti)
-                    self.worker.finished.connect(self.on_sync_finished)
-                    self.worker.error.connect(self.on_sync_error)
-                    self.worker.log.connect(self.on_log_message)
-                    self.worker.start()
-                else:
-                    self.on_sync_finished()
-
-            self.transcribe_worker.finished.connect(on_transcription_done)
-            self.transcribe_worker.error.connect(self.on_sync_error)
-            self.transcribe_worker.log.connect(self.on_log_message)
-            self.transcribe_worker.start()
-
-        # ── Caso 2: solo PDF ─────────────────────────────────────────────
-        elif file_da_elaborare:
+        if file_da_elaborare:
             self.worker = GeminiSyncWorker(prompt=prompt_utente, paths=file_da_elaborare)
             self.worker.finished.connect(self.on_sync_finished)
             self.worker.error.connect(self.on_sync_error)
             self.worker.log.connect(self.on_log_message)
             self.worker.start()
+        
+        self.on_log_message(f"🎙️ Trovati {len(audio_paths)} file audio, avvio trascrizione...")
 
+        # ── Caso 2: solo PDF ─────────────────────────────────────────────
+        if audio_paths:
+            self.audio = audio_paths
+            self.files = file_da_elaborare
+            self.prompt = prompt_utente
+
+            self.load_model()
+
+        self.reset_gui_state()
+    def on_transcription_done(self):
+        txt_paths = [str(p.with_suffix(".txt")) for p in self.audio]
+        tutti = self.files + txt_paths
+        if tutti:
+            self.worker = GeminiSyncWorker(prompt=self.prompt, paths=tutti)
+            self.worker.finished.connect(self.on_sync_finished)
+            self.worker.error.connect(self.on_sync_error)
+            self.worker.log.connect(self.on_log_message)
+            self.worker.start()
+        else:
+            self.on_sync_finished()
+
+        
 
         
 
@@ -507,6 +543,7 @@ class FileManagerWindow(QMainWindow):
     def reset_gui_state(self):
         """Riporta i bottoni allo stato normale."""
         self.log_area.clear()
+        self.btn_crea.setEnabled(True)
         self.btn_aggiorna.setEnabled(True)
         self.btn_carica.setEnabled(True)
         self.btn_pulisci.setEnabled(True)
