@@ -67,7 +67,7 @@ class FileManagerWindow(QMainWindow):
 
 
 
-        # --- File System Model (La correzione è qui) ---
+        
         self.model = ColorFileSystemModel()
         filter = TranscribeWorker.SUPPORTED_FORMATS
         filter = list(filter)
@@ -76,6 +76,7 @@ class FileManagerWindow(QMainWindow):
             filters.append("*"+f)
         
         filters.append("*.pdf")
+        filters.append("*.txt")
     
         self.model.setRootPath(DATAPATH) 
         self.model.setReadOnly(False)

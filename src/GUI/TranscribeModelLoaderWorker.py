@@ -20,7 +20,7 @@ class TranscribeModelLoaderWorker (QThread):
     def run(self):
         # Avvia il processo multiprocessing
         self.process = multiprocessing.Process(
-            target=whisper_process_engine, 
+            target=whisper_lazy_engine, 
             args=(self.audio_paths, self.queue)
         )
         self.process.start()

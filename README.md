@@ -1,17 +1,17 @@
 #Generatore Appunti
 
-Applicazione desktop per **generare appunti strutturati da PDF ** e caricarli automaticamente su Notion. Usa le API di Google Gemini per estrarre e strutturare il contenuto, e l'API di Notion per organizzarlo nell'albero di pagine esistente.
+Applicazione desktop per **generare appunti strutturati partendo da un PDF o una traccia audio ** e caricarli su Notion. Usa le API di Google Gemini per estrarre e strutturare il contenuto, e l'API di Notion per inserire la risposta all'interno della piattaforma.
 
 ---
 
 ## Flusso di utilizzo
 
 ```
-[Aggiorna]-> Trova cartelle di Notion -> drag&drop un PDF → [Crea] → appunti .json → [Carica] → pagina Notion
+[Aggiorna]-> Trova cartelle di Notion -> drag&drop un PDF o traccia audio→ [Crea] → appunti .json → [Carica] → pagina Notion
 
 ```
 
-1. **Aggiorna** — Sincronizza la struttura di cartelle locale con l'albero di pagine Notion. Va fatto con , o quando aggiungi nuove pagine su Notion.
+1. **Aggiorna** — Sincronizza la struttura di cartelle locale con l'albero di pagine Notion. Va fatto con , o quando aggiungi nuove pagine su Notion. **Attenzione** è necessario avere inserito un id base corretto all'intenro delle impostazioni 
 2. **Crea** — Seleziona uno o più PDF e genera gli appunti con Gemini. I file risultanti vengono salvati nella stessa cartella del PDF come `.json`.
 3. **Carica** — Seleziona i PDF (o i file già elaborati) e carica gli appunti come nuove sotto-pagine in Notion.
 4. **Pulisci** — Elimina i PDF e i file `.json` già caricati su Notion con successo.
@@ -21,7 +21,7 @@ Applicazione desktop per **generare appunti strutturati da PDF ** e caricarli au
 ## Prerequisiti
 
 - Python **3.11+**
-- Un account **Google AI Studio** con una API Key per Gemini
+- Un account **Google AI Studio** con una API Key per un progetto qualsiasi
 - Un account **Notion** con una Integration Token e l'ID della pagina radice
 
 ### Dipendenze Python
@@ -88,7 +88,7 @@ progetto/
 │   ├── history_pdf.json        # PDF elaborati da Gemini
 │   ├── history_loaded.json     # File caricati su Notion
 │   └── [struttura cartelle]/   # Specchio dell'albero Notion
-│       └── .id                 # ID Notion della cartella (file nascosto)
+│       └── .id                 # ID Notion della cartella (file nascosto) NON MODIFICARE O ELMINARE 
 └── settings.json               # Configurazione utente (generato al salvataggio)
 ```
 

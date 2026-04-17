@@ -62,6 +62,9 @@ class MarkdownToPDF:
                     '--pdf-engine=xelatex',
                     f'--include-in-header={header_path}',
                     '--pdf-engine-opt=-interaction=nonstopmode',
+                    '-V','geometry:top=1cm,bottom=1cm,left=1cm,right=1cm',
+                    '-V', 'parskip=0pt',        # elimina spazio extra tra paragrafi
+                    '-V', 'linestretch=1',    # interlinea (default è 1.2, abbassa se vuoi più compatto)
                 ]
             )
             return True
