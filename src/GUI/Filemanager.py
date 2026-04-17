@@ -1,12 +1,10 @@
 import sys
 from pathlib import Path
-import fitz
-import time
 # 1. Widgets (Elementi visivi: Finestre, Bottoni, Layout)
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, 
     QHBoxLayout, QPushButton, QTreeView, 
-    QHeaderView, QMessageBox, QLabel,QSplitter,QScrollArea,QTextEdit
+    QMessageBox, QTextEdit
 )
 import multiprocessing
 
@@ -24,15 +22,14 @@ from src.GUI.TranscribeWorker import TranscribeWorker
 from src.GUI.NotionDownloaderSync import NotionDownloaderSync
 from src.GUI.TranscribeModelLoaderWorker import TranscribeModelLoaderWorker
 from src.GUI.whisperProcess import whisper_lazy_engine
+from src.GUI.PDFViewer import PDFViewerWidget
 # 2. QtGui (Componenti grafici e Modelli) -> QFileSystemModel è QUI!
-from PyQt6.QtGui import  QAction,QShortcut, QKeySequence,QDesktopServices,QPixmap
+from PyQt6.QtGui import QAction, QShortcut, QKeySequence, QDesktopServices
 
 
 # 3. QtCore (Funzionalità base non grafiche: Directory, Threading)
-from PyQt6.QtCore import Qt, QDir,QUrl,QByteArray,QTimer
-from src.GUI.config import DATAPATH,BTN_HEIGHT
-PREVIEW_PAGES = 3
-PREVIEW_WIDTH = 320
+from PyQt6.QtCore import Qt, QUrl, QTimer
+from src.GUI.config import DATAPATH, BTN_HEIGHT
 #Parti fatte bene
 #1) aggiornamento di Notion
 #2) interfaccia grafica
@@ -63,7 +60,11 @@ class FileManagerWindow(QMainWindow):
         self.setCentralWidget(central_widget)#dice alla finestra principale di contenere l'oggetto Qwidget come contenitore dell'elemento principale
         main_layout = QVBoxLayout()#VBox layout per contenere le cartelle di progetto
         central_widget.setLayout(main_layout)#main_layout viene inserito all'interno del contenitore principale
-        splitter = QSplitter(Qt.Orientation.Horizontal)
+
+        # Mantieni i riferimenti alle finestre PDF aperte, altrimenti PyQt le distrugge subito
+        self.open_pdf_windows = []
+        self.active_workers = set()
+        self.pending_operations = 0
 
 
 
@@ -93,7 +94,8 @@ class FileManagerWindow(QMainWindow):
         # Colleghiamo entrambe alla stessa funzione
         self.shortcut_enter.activated.connect(self.azione_apri_elemento)
         self.shortcut_num_enter.activated.connect(self.azione_apri_elemento)
-        self.shortcut_delete.activated.connect(self.cancella)        
+        self.shortcut_delete.activated.connect(self.cancella)
+        self.tree_view.doubleClicked.connect(self.azione_apri_elemento)        
 
         self.tree_view.setColumnHidden(1, False) 
         self.tree_view.setColumnHidden(2, True)  
@@ -107,46 +109,7 @@ class FileManagerWindow(QMainWindow):
         
         # Allarga la colonna del nome
         self.tree_view.header().resizeSection(0, 300)
-        self.tree_view.clicked.connect(self.aggiorna_anteprima)
-        self.splitter = QSplitter(Qt.Orientation.Horizontal)
-
-        #-- WIDGET ANTEPRIMA ---
-        preview_container = QWidget()
-        preview_container.setMinimumWidth(PREVIEW_WIDTH + 20)
-        preview_layout = QVBoxLayout(preview_container)
-        preview_layout.setContentsMargins(4, 4, 4, 4)
-        preview_layout.setSpacing(4)
-        main_layout.addWidget(self.tree_view)#aggiunta del treeview
-        # Titolo del file selezionato
-        self.preview_title = QLabel("Nessun file selezionato")
-        self.preview_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.preview_title.setStyleSheet("font-weight: bold; padding: 4px;")
-        self.preview_title.setWordWrap(True)
-        preview_layout.addWidget(self.preview_title)
-
-        # Scroll area che contiene le pagine impilate verticalmente
-        self.scroll_area = QScrollArea()
-        self.scroll_area.setWidgetResizable(True)
-        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-
-        self.pages_widget = QWidget()
-        self.pages_layout = QVBoxLayout(self.pages_widget)
-        self.pages_layout.setContentsMargins(4, 4, 4, 4)
-        self.pages_layout.setSpacing(8)
-        self.pages_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-
-        self.scroll_area.setWidget(self.pages_widget)
-        preview_layout.addWidget(self.scroll_area)
-
-        # --- Aggiunge i due pannelli allo splitter ---
-        self.splitter.addWidget(self.tree_view)
-        self.splitter.addWidget(preview_container)
-
-        # Proporzione iniziale: 65% TreeView, 35% Anteprima
-        self.splitter.setStretchFactor(0, 65)
-        self.splitter.setStretchFactor(1, 35)
-
-        main_layout.addWidget(self.splitter)
+        main_layout.addWidget(self.tree_view)
         # --- Bottoni ---
         buttons_layout = QHBoxLayout()
         
@@ -226,6 +189,46 @@ class FileManagerWindow(QMainWindow):
         self.cleaner = DeleteWorker()
         self.transcriber = None
 
+    def _set_busy_state(self, busy: bool):
+        controls = (
+            self.btn_crea,
+            self.btn_aggiorna,
+            self.btn_carica,
+            self.btn_pulisci,
+            self.btn_pdf,
+        )
+        for control in controls:
+            control.setEnabled(not busy)
+
+        self.btn_aggiorna.setText("Sincronizzazione in corso..." if busy else "Aggiorna")
+
+    def _begin_operation(self):
+        self.pending_operations += 1
+        self._set_busy_state(True)
+
+    def _end_operation(self):
+        self.pending_operations = max(0, self.pending_operations - 1)
+        if self.pending_operations == 0:
+            self.reset_gui_state()
+
+    def _start_worker(self, worker):
+        self.active_workers.add(worker)
+        self._begin_operation()
+        worker.finished.connect(lambda w=worker: self._on_worker_finished(w))
+        worker.error.connect(lambda error_msg, w=worker: self._on_worker_error(w, error_msg))
+        worker.start()
+        return worker
+
+    def _on_worker_finished(self, worker):
+        self.active_workers.discard(worker)
+        QMessageBox.information(self, "Successo", "Operazione terminata")
+        self._end_operation()
+
+    def _on_worker_error(self, worker, error_msg):
+        self.active_workers.discard(worker)
+        QMessageBox.critical(self, "Errore Notion", f"Si è verificato un errore:\n{error_msg}")
+        self._end_operation()
+
     def check_whisper_results(self):
         while not self.result_queue.empty():
             msg = self.result_queue.get()
@@ -239,85 +242,12 @@ class FileManagerWindow(QMainWindow):
                 self.on_log_message("✅ Trascrizione completata. Avvio analisi con Gemini...")
                 # ORA chiamiamo Gemini con la lista completa (PDF originali + TXT generati)
                 self.on_transcription_done()
+                self._end_operation()
                 
             elif msg["type"] == "error":
-                self.on_sync_error(msg["content"])
+                QMessageBox.critical(self, "Errore Trascrizione", msg["content"])
+                self._end_operation()
 
-    def aggiorna_anteprima(self, index):
-        """
-        Chiamato al click singolo sul TreeView.
-        Se è un PDF, mostra le prime PREVIEW_PAGES pagine nel pannello.
-        Se è una cartella o un file non-PDF, mostra il placeholder.
-        Non interferisce con la selezione multipla (usa clicked, non selectionChanged).
-        """
-        # Pulisce il contenuto precedente
-        self._svuota_anteprima()
-
-        if self.model.isDir(index):
-            self.preview_title.setText("Seleziona un file PDF")
-            return
-
-        file_path = self.model.filePath(index)
-        if not file_path.lower().endswith(".pdf"):
-            self.preview_title.setText("Seleziona un file PDF")
-            return
-
-        nome = Path(file_path).name
-        self.preview_title.setText(nome)
-        
-
-        try:
-            doc = fitz.open(file_path)
-            n_pages = min(PREVIEW_PAGES, len(doc))
-
-            for i in range(n_pages):
-                page = doc[i]
-
-                # Zoom proporzionale per adattarsi a PREVIEW_WIDTH
-                zoom = PREVIEW_WIDTH / page.rect.width
-                mat = fitz.Matrix(zoom, zoom)
-                pix = page.get_pixmap(matrix=mat, alpha=False)
-
-                # Converti in QPixmap tramite bytes PNG
-                img_bytes = QByteArray(pix.tobytes("png"))
-                pixmap = QPixmap()
-                pixmap.loadFromData(img_bytes)
-
-                lbl_pagina = QLabel()
-                lbl_pagina.setPixmap(pixmap)
-                lbl_pagina.setAlignment(Qt.AlignmentFlag.AlignHCenter)
-                lbl_pagina.setStyleSheet("border: 1px solid #cccccc;")
-                self.pages_layout.addWidget(lbl_pagina)
-
-                # Separatore visivo tra pagine
-                if i < n_pages - 1:
-                    sep = QLabel()
-                    sep.setFixedHeight(1)
-                    sep.setStyleSheet("background-color: #dddddd;")
-                    self.pages_layout.addWidget(sep)
-
-            doc.close()
-
-            # Se il PDF ha più pagine di quelle mostrate, avvisa
-            if len(doc) > PREVIEW_PAGES:
-                lbl_more = QLabel(f"… altre {len(doc) - PREVIEW_PAGES} pagine")
-                lbl_more.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                lbl_more.setStyleSheet("color: #888888; font-style: italic; padding: 4px;")
-                self.pages_layout.addWidget(lbl_more)
-
-        except Exception as e:
-            lbl_err = QLabel(f"Errore anteprima:\n{e}")
-            lbl_err.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            lbl_err.setStyleSheet("color: #cc0000; padding: 10px;")
-            self.pages_layout.addWidget(lbl_err)
-
-    def _svuota_anteprima(self):
-        """Rimuove tutti i widget figli dal layout delle pagine."""
-        while self.pages_layout.count():
-            item = self.pages_layout.takeAt(0)
-            widget = item.widget()
-            if widget:
-                widget.deleteLater()
     #--- Eventi Drag & Drop ---
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
@@ -345,20 +275,12 @@ class FileManagerWindow(QMainWindow):
             self.model.refresh_histories()
     def pulisci(self):
         self.log_area.clear()
-        self.btn_crea.setEnabled(True)
-        self.btn_pulisci.setEnabled(False)
-        self.btn_carica.setEnabled(False)
-
         self.worker = DeleteSyncWorker()
-        self.worker.finished.connect(self.on_sync_finished)
-        self.worker.error.connect(self.on_sync_error)
         self.worker.log.connect(self.on_log_message)
-        self.worker.start()
+        self._start_worker(self.worker)
     
     def scarica_pdf(self):
         self.log_area.clear()
-        self.btn_aggiorna.setEnabled(False)
-        self.btn_carica.setEnabled(False)
 
         file_selezionati = self.tree_view.selectedIndexes()
         if not file_selezionati:
@@ -384,14 +306,12 @@ class FileManagerWindow(QMainWindow):
             return
 
         self.worker = NotionDownloaderSync(instructions=instructions)
-        self.worker.finished.connect(self.on_sync_finished)
-        self.worker.error.connect(self.on_sync_error)
         self.worker.log.connect(self.on_log_message)
-        self.worker.start()
-        self.reset_gui_state()
+        self._start_worker(self.worker)
     
 
     def load_model(self)->None:
+        self._begin_operation()
         self.task_queue.put({"paths":self.audio})
         
     
@@ -399,8 +319,6 @@ class FileManagerWindow(QMainWindow):
     def crea(self):
         print("Creazione in corso...")
         self.log_area.clear()
-        self.btn_pulisci.setEnabled(False)
-        self.btn_crea.setEnabled(False)
 
         file_selezionati = self.tree_view.selectedIndexes()
         if not file_selezionati:
@@ -442,33 +360,25 @@ class FileManagerWindow(QMainWindow):
         # ── Caso 1: ci sono audio ────────────────────────────────────────
         if file_da_elaborare:
             self.worker = GeminiSyncWorker(prompt=prompt_utente, paths=file_da_elaborare)
-            self.worker.finished.connect(self.on_sync_finished)
-            self.worker.error.connect(self.on_sync_error)
             self.worker.log.connect(self.on_log_message)
-            self.worker.start()
+            self._start_worker(self.worker)
         
-        self.on_log_message(f"Trovati {len(audio_paths)} file audio, avvio trascrizione...")
-
         # ── Caso 2: solo PDF ─────────────────────────────────────────────
         if audio_paths:
+            self.on_log_message(f"Trovati {len(audio_paths)} file audio, avvio trascrizione...")
             self.audio = audio_paths
             self.files = file_da_elaborare
             self.prompt = prompt_utente
 
             self.load_model()
 
-        self.reset_gui_state()
     def on_transcription_done(self):
         txt_paths = [str(p.with_suffix(".txt")) for p in self.audio]
         tutti = self.files + txt_paths
         if tutti:
             self.worker = GeminiSyncWorker(prompt=self.prompt, paths=tutti)
-            self.worker.finished.connect(self.on_sync_finished)
-            self.worker.error.connect(self.on_sync_error)
             self.worker.log.connect(self.on_log_message)
-            self.worker.start()
-        else:
-            self.on_sync_finished()
+            self._start_worker(self.worker)
 
         
 
@@ -489,14 +399,10 @@ class FileManagerWindow(QMainWindow):
  
         for file in file_paths:
             print(file)
-        self.btn_pulisci.setEnabled(False)
-        self.btn_carica.setEnabled(False)
 
         self.worker = NotionSyncLoader(file_paths)
-        self.worker.finished.connect(self.on_sync_finished)
-        self.worker.error.connect(self.on_sync_error)
         self.worker.log.connect(self.on_log_message)
-        self.worker.start()
+        self._start_worker(self.worker)
 
         
 
@@ -516,20 +422,8 @@ class FileManagerWindow(QMainWindow):
         # 3. Collega i segnali del thread alle funzioni della GUI
 
         self.worker.log.connect(self.on_log_message)
-        self.worker.finished.connect(self.on_sync_finished)
-        self.worker.error.connect(self.on_sync_error)
         # 4. Avvia il thread
-        self.worker.start()
-
-    def on_sync_finished(self):
-        """Chiamato dal segnale finished."""
-        QMessageBox.information(self, "Successo", "Operazione terminata")
-        self.reset_gui_state()
-
-    def on_sync_error(self, error_msg):
-        """Chiamato dal segnale error."""
-        QMessageBox.critical(self, "Errore Notion", f"Si è verificato un errore:\n{error_msg}")
-        self.reset_gui_state()
+        self._start_worker(self.worker)
 
     def on_log_message(self, message):
         """Chiamato dal segnale log."""
@@ -543,17 +437,9 @@ class FileManagerWindow(QMainWindow):
 
     def reset_gui_state(self):
         """Riporta i bottoni allo stato normale."""
-        self.log_area.clear()
-        self.btn_crea.setEnabled(True)
-        self.btn_aggiorna.setEnabled(True)
-        self.btn_carica.setEnabled(True)
-        self.btn_pulisci.setEnabled(True)
-        self.btn_carica.setEnabled(True)
-        
+        self._set_busy_state(False)
         self.model.refresh_histories()
-        self.btn_aggiorna.setText("Aggiorna")
-        # Puliamo la variabile worker per sicurezza
-        self.worker = None
+
     def cancella(self):
         indici = self.tree_view.selectedIndexes()
 
@@ -577,14 +463,40 @@ class FileManagerWindow(QMainWindow):
         msg.setWindowTitle("Info")
         msg.setText(testo)
         msg.exec()
-    def azione_apri_elemento(self):
+
+    def apri_pdf_in_viewer(self, file_path: str):
+        """Apre un PDF con il widget interno e mantiene il codice centralizzato."""
+        viewer = PDFViewerWidget(file_path)
+        viewer.setWindowTitle(Path(file_path).name)
+        self.open_pdf_windows.append(viewer)
+        viewer.destroyed.connect(lambda *_: self._cleanup_pdf_windows())
+        viewer.show()
+        viewer.activateWindow()
+        viewer.raise_()
+        viewer.setFocus()
+        return viewer
+
+    def _cleanup_pdf_windows(self):
+        active_windows = []
+        for window in self.open_pdf_windows:
+            if window is None:
+                continue
+            try:
+                if not window.isHidden():
+                    active_windows.append(window)
+            except RuntimeError:
+                continue
+        self.open_pdf_windows = active_windows
+
+    def azione_apri_elemento(self, index=None):
         """
         Gestisce la pressione del tasto INVIO.
         - Se è una cartella: Espande o Collassa l'albero.
         - Se è un file: Lo apre con il programma predefinito di sistema.
         """
         # 1. Recupera l'indice selezionato
-        index = self.tree_view.currentIndex()
+        if index is None or not index.isValid():
+            index = self.tree_view.currentIndex()
         
         # Se non c'è nulla di selezionato, esci
         if not index.isValid():
@@ -603,9 +515,24 @@ class FileManagerWindow(QMainWindow):
             # Recupera il percorso completo del file dal modello
             file_path = self.model.filePath(index)
             
-            # Usa QDesktopServices per aprire il file come se facessi doppio click
-            # (Apre i PDF col lettore PDF, i TXT col blocco note, etc.)
-            QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
+            if file_path.lower().endswith('.pdf'):
+                self.apri_pdf_in_viewer(file_path)
+            else:
+                # Usa QDesktopServices per aprire il file come se facessi doppio click
+                # (Apre i TXT con l'editor di sistema, ecc.)
+                QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
+
+    def closeEvent(self, event):
+        self.monitor_timer.stop()
+        for window in list(self.open_pdf_windows):
+            try:
+                window.close()
+            except RuntimeError:
+                continue
+        if self.whisper_process.is_alive():
+            self.whisper_process.terminate()
+            self.whisper_process.join(timeout=1)
+        super().closeEvent(event)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
