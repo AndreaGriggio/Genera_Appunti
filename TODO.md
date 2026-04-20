@@ -1,9 +1,9 @@
 # Progetto Genera Appunti
 
 - [x]  Implementare un visualizzatore pdf interno
-- [ ]  Gestione di finestre funzioni specializzate → una per il file system e selezione e generazione di materiale , una per la visualizzazione dei pdf internamente all’applicazione, e anche quella per la generazione di mappe concettuali
+- [x]  Gestione di finestre funzioni specializzate → una per il file system e selezione e generazione di materiale , una per la visualizzazione dei pdf internamente all’applicazione, e anche quella per la generazione di mappe concettuali
 - [ ]  Implementare un sistema per la costruzione di maptrees
-- [ ]  Modifica filemanager
+- [x]  Modifica filemanager
 
 ### Implementazione visualizzazione pdf interno
 
@@ -47,9 +47,15 @@
 > L’idea è ispirata a come gemini crea le mappe mentali dovrebbe essere un json scritto quindi qualsiasi blocco o azione effettivamente modifica un certo file json utilizzato per visualizzare il contenuto
 > 
 - E’ necessario avere un visualizzatore grafico json → schema
-- E’ un progetto a parte vorrei farlo in c++
 - E’ necessario strutturare il sistema in modo che sia semplice , pochi colori , poche funzionalità essenziali per costruire mappe mentali
-- E’ una funzionalità molto interessante si potrebbe implementare utilizzando gemini uno schema per permettergli di generare automaticamente le mappe sarà quindi necessario modificare prompt , schema dei blocchi che può scegliere , temperatura ,altri parametri
+**Funzionalità**
+>Tutti i moduli devono essere :
+1. Traduttore JSON -> elementi grafici
+2. Elementi grafici estesi da QGraphicsRectItem, QGraphicsPathItem
+    Devono rappresentare la scena in 2D e dopo tutti gli elementi vengono presi e salvati all'interno del JSON
+    **Leggere la scena significa leggere il JSON e creare i corrispondenti oggetti!**
+3. Motore che gestisce interazione utente e interfaccia quindi si occupa di creare blocchi, rige scene
+4. Esportatore JSON ->PDF QPainter fa esattamente questa cosa bisogna leggere la scena e poi esportare utilizzando questo tool 
 
 **Oggetti**
 
@@ -85,4 +91,5 @@
 
 1. messaggi visualizzati vorrei che fossero simili a quelli che escono su vscode
 2. possibilità di nascondere o mostrare i messaggi
-3. possibilità di nascondere o mostrare l’anteprima
+
+

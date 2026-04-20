@@ -2,7 +2,7 @@ import sys
 from pathlib import Path
 # 1. Widgets (Elementi visivi: Finestre, Bottoni, Layout)
 from PyQt6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, 
+    QApplication,  QWidget, QVBoxLayout, 
     QHBoxLayout, QPushButton, QTreeView, 
     QMessageBox, QTextEdit
 )
@@ -15,7 +15,6 @@ from src.GUI.NotionSyncLoader import NotionSyncLoader
 from src.GUI.DeleteSync import DeleteSyncWorker
 from src.GUI.DeleteWorker import DeleteWorker
 from src.GUI.ColorFileSystemModel import ColorFileSystemModel
-from src.GUI.SettingsDialog import open_settings
 from src.GUI.NotionLoader import NotionLoader
 from src.GUI.TranscribeSync import TranscribeSyncWorker
 from src.GUI.TranscribeWorker import TranscribeWorker
@@ -24,11 +23,8 @@ from src.GUI.TranscribeModelLoaderWorker import TranscribeModelLoaderWorker
 from src.GUI.whisperProcess import whisper_lazy_engine
 from src.GUI.PDFViewer import PDFViewerWidget
 # 2. QtGui (Componenti grafici e Modelli) -> QFileSystemModel è QUI!
-from PyQt6.QtGui import QAction, QShortcut, QKeySequence, QDesktopServices
-
-
-# 3. QtCore (Funzionalità base non grafiche: Directory, Threading)
-from PyQt6.QtCore import Qt, QUrl, QTimer
+from PyQt6.QtGui import QShortcut, QKeySequence, QDesktopServices
+from PyQt6.QtCore import Qt, QUrl, QTimer, pyqtSignal
 from src.GUI.config import DATAPATH, BTN_HEIGHT
 #Parti fatte bene
 #1) aggiornamento di Notion
@@ -41,8 +37,14 @@ from src.GUI.config import DATAPATH, BTN_HEIGHT
 #2) inserimento delle risposte con Notion
 #3) gestione file dict_json
 
-class FileManagerWindow(QMainWindow):
-    
+
+#Modifiche 
+#Filemanager da QMainWindow a QWidget 
+#   implicazioni
+#       1. Non ha più una menu bar quindi effettivamente deve essere inserito all'interno dell'hub più esterno
+#       2. Ha solamente il metodo setLayout
+class FileManagerWindow(QWidget):
+    new_tab_ready = pyqtSignal(QWidget,str)
     def __init__(self):
         super().__init__()
 
@@ -50,17 +52,8 @@ class FileManagerWindow(QMainWindow):
         self.resize(1200, 650)#setta la dimensione della finestra
         self.setAcceptDrops(True) # Abilita il trascinamento
 
-        menu_bar = self.menuBar()
-        settings_action = QAction("Impostazioni", self)
-        settings_action.triggered.connect(self.apri_impostazioni)
-        menu_bar.addAction(settings_action)
-
-        # --- Setup UI ---
-        central_widget = QWidget()#creazione oggetto Qwidget come contenitore dell'elemento princpale
-        self.setCentralWidget(central_widget)#dice alla finestra principale di contenere l'oggetto Qwidget come contenitore dell'elemento principale
         main_layout = QVBoxLayout()#VBox layout per contenere le cartelle di progetto
-        central_widget.setLayout(main_layout)#main_layout viene inserito all'interno del contenitore principale
-
+        self.setLayout(main_layout)
         # Mantieni i riferimenti alle finestre PDF aperte, altrimenti PyQt le distrugge subito
         self.open_pdf_windows = []
         self.active_workers = set()
@@ -143,7 +136,7 @@ class FileManagerWindow(QMainWindow):
         self.btn_aggiorna.setFixedHeight(BTN_HEIGHT)
         self.btn_aggiorna.setStyleSheet("padding: 5px;")
         
-                #azione del bottone
+        #azione del bottone
         self.btn_aggiorna.clicked.connect(self.aggiorna)
         #--- BOTTONE SCARICA PDF ---
         self.btn_pdf = QPushButton("Scarica PDF")
@@ -260,19 +253,6 @@ class FileManagerWindow(QMainWindow):
         testo_files = "\n".join([Path(f).name for f in files])
         self.mostra_messaggio(f"Hai caricato:\n{testo_files}")
 
-    # --- Le tue Azioni ---
-    def apri_impostazioni(self):
-        """
-        Apre il dialogo impostazioni in modalità modale.
-        Blocca la finestra principale fino alla chiusura.
-        Se l'utente salva, aggiorna i colori nel model.
-        """
-        self.log_area.clear()
-        print("1 - prima di open_settings")
-        changed = open_settings(parent=self)
-        print(f"2 - dopo open_settings, changed={changed}")
-        if changed:
-            self.model.refresh_histories()
     def pulisci(self):
         self.log_area.clear()
         self.worker = DeleteSyncWorker()
@@ -467,14 +447,15 @@ class FileManagerWindow(QMainWindow):
     def apri_pdf_in_viewer(self, file_path: str):
         """Apre un PDF con il widget interno e mantiene il codice centralizzato."""
         viewer = PDFViewerWidget(file_path)
-        viewer.setWindowTitle(Path(file_path).name)
+        name = Path(file_path).name
+        viewer.setWindowTitle(name)
         self.open_pdf_windows.append(viewer)
         viewer.destroyed.connect(lambda *_: self._cleanup_pdf_windows())
         viewer.show()
         viewer.activateWindow()
         viewer.raise_()
         viewer.setFocus()
-        return viewer
+        self.new_tab_ready.emit(viewer,name)
 
     def _cleanup_pdf_windows(self):
         active_windows = []
