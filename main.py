@@ -1,6 +1,6 @@
 import sys
 from PyQt6.QtWidgets import QApplication
-from src.GUI.Filemanager import FileManagerWindow
+from src.GUI.Core.Filemanager import FileManagerWindow
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

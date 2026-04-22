@@ -2,7 +2,7 @@
 import os 
 from pathlib import Path
 from src.GUI.config import DATAPATH,NOTION_TOKEN
-from src.GUI.NotionParser import NotionParser
+from src.GUI.Notion.NotionParser import NotionParser
 from notion_client import Client
 
 

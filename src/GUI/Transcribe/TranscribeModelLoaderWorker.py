@@ -3,7 +3,7 @@ from faster_whisper import WhisperModel
 import multiprocessing
 from faster_whisper import WhisperModel
 from pathlib import Path
-from src.GUI.whisperProcess import whisper_lazy_engine
+from src.GUI.Transcribe.whisperProcess import whisper_lazy_engine
 
 class TranscribeModelLoaderWorker (QThread):
     finished = pyqtSignal()

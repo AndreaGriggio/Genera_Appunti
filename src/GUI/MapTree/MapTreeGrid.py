@@ -1,14 +1,19 @@
 import sys
 import math
-from src.GUI.TextElement import TextItem
-from src.GUI.LineElement import LineItem
+from src.GUI.MapTree.TextElement import TextItem
+from src.GUI.MapTree.LineElement import LineItem
+from src.GUI.MapTree.Node import Node
+from src.GUI.MapTree.Element import Element
+import json
+
 from PyQt6.QtWidgets import (
     QGraphicsScene, QApplication, QGraphicsRectItem,
     QGraphicsView, QPushButton, QHBoxLayout, QVBoxLayout,
-    QLabel, QWidget,QMenuBar,QMessageBox
+    QLabel, QWidget,QMenuBar,QMessageBox,QGraphicsItem,
+    QFileDialog
 )
 from PyQt6.QtGui import QPen,QColor,QKeySequence,QCursor,QShortcut,QBrush,QTransform,QPainterPath
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt,pyqtSignal
 
 
 SHIFT = 40
@@ -21,13 +26,14 @@ class MapTreeGrid(QGraphicsScene):
     GRID_COLOR = QColor(200,200,200)
     SELECTION_COLOR = QColor(0, 150, 255, 50)
     GRID_WIDTH = 2
-    
+
     def __init__(self):
         super().__init__()
         self.setSceneRect(-5000, -5000, 10000, 10000)
         self.setBackgroundBrush(QBrush(self.SCENE_COLOR))
         self.rettangolo_visivo = None
         self.linea_in_costruzione = None
+        self.tipo_linea = "spline"
 
     def drawBackground(self, painter, rect):
 
@@ -54,15 +60,17 @@ class MapTreeGrid(QGraphicsScene):
 
             if isinstance(obj_under_event,TextItem):
 
-                self.linea_in_costruzione = LineItem(node_start=obj_under_event,node_end=None )
+                self.linea_in_costruzione = LineItem(node_start=obj_under_event,node_end=None ,tipo = self.tipo_linea)
                 self.linea_in_costruzione.node_start.connected_lines.append(self.linea_in_costruzione)
                 self.addItem(self.linea_in_costruzione)
 
 
             event.accept()
             return 
-        
-        if event.button() == Qt.MouseButton.RightButton:
+    
+        if event.button() == Qt.MouseButton.RightButton :
+            if isinstance(self.itemAt(event.scenePos(),QTransform()),TextItem):
+                return super().mousePressEvent(event)
             self.punto_inizio_selezione = event.scenePos()
             
             self.rettangolo_visivo = QGraphicsRectItem()
@@ -129,21 +137,26 @@ class MapTreeGrid(QGraphicsScene):
             self.rettangolo_visivo = None
 
         return super().mouseReleaseEvent(event)
+
+
     
 
 
 class Viewer(QWidget):
+    new_tab_ready = pyqtSignal(QWidget,str)
     ZOOM_FACTOR = 1.2
     BASE_ZOOM = 1.0
-    def __init__(self, scene: QGraphicsScene):
+    def __init__(self, scene: MapTreeGrid):
+        self.usable_id = 0
         super().__init__()
         #==== Aggiunta della Scena Oggetti ====
         # La scena ci serve da contenitore per gli elementi della mappa
         self.view = QGraphicsView(scene)
         self.scene = scene
+        self.saver = MapSaver(self)
         #Impostazione di DRAG
         self.view.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
-
+        
         #==== Aggiunta Bottoni ====
         self.btn_zoom_more = QPushButton("+")
         self.btn_zoom_less = QPushButton("-")
@@ -168,7 +181,12 @@ class Viewer(QWidget):
 
         action_testo = menu_aggiunte.addAction("Testo")
         menu_linee = menu_aggiunte.addMenu("Linee")
+        menu_utility = barra.addMenu("Utilita")
+        action_salva = barra.addAction("Salva")
 
+
+        action_mostra_nodi = menu_utility.addAction("Mostra Tutti i Nodi")
+        action_mostra_nodi.triggered.connect(self.mostra_tutti_i_nodi)
 
         action_linea = menu_linee.addAction("Spline")
         action_retta = menu_linee.addAction("Retta")
@@ -178,7 +196,10 @@ class Viewer(QWidget):
         action_retta.setShortcut("Ctrl+r")
 
         action_testo.triggered.connect(self.add_testo)
-        action_linea.triggered.connect(self.add_linea)
+        action_linea.triggered.connect(self.spline_type)
+        action_retta.triggered.connect(self.rect_type)
+        action_salva.triggered.connect(self.salva)
+
         #==== Tooltips Comandi ====
         menu_doc = barra.addMenu("Documentazione")
         action_guida = menu_doc.addAction("Manuale e Comandi")
@@ -233,7 +254,8 @@ class Viewer(QWidget):
 
     #==== Gestione Di inserimento elementi ====
     def add_testo(self):
-        item = TextItem("Nuovo Blocco di testo",None)
+        item = TextItem("Nuovo Blocco di testo",None,id=self.usable_id)
+        self.usable_id = self.usable_id + 1
 
         pos_monitor = QCursor.pos()
     
@@ -246,29 +268,6 @@ class Viewer(QWidget):
         scene = self.view.scene()
         scene.addItem(item)
 
-    def add_linea(self):
-        
-        nodo_a = TextItem("Partenza",None)
-        nodo_b = TextItem("Arrivo",None)
-
-        
-        scene = self.view.scene()
-        scene.addItem(nodo_a)
-        scene.addItem(nodo_b)
-        cursor_pos = QCursor.pos()
-        nodo_a.setPos(cursor_pos.x(),cursor_pos.y())
-        nodo_b.setPos(400, 200)
-        # Crei la linea passandole i nodi
-        mia_linea = LineItem(nodo_a, nodo_b)
-
-        # Aggiungi la linea alla scena
-        scene.addItem(mia_linea)
-
-        # Salvi la linea dentro ai nodi per farli comunicare
-        nodo_a.connected_lines.append(mia_linea)
-        nodo_b.connected_lines.append(mia_linea)
-        print("Aggiungo Linea")
-        scene.update()
 
     #==== Gestione Shortcuts ====
     def elimina_selezionati(self):
@@ -293,7 +292,10 @@ class Viewer(QWidget):
                     item.connected_lines.clear()
 
                 self.scene.removeItem(item)
-
+    def spline_type(self):
+        self.scene.tipo_linea = "spline"
+    def rect_type(self):
+        self.scene.tipo_linea = "retta"
     def cambia_bordi_selezionati(self):
         for item in self.scene.selectedItems():
             if hasattr(item, 'toggle_forma'):
@@ -303,7 +305,25 @@ class Viewer(QWidget):
         for item in self.scene.selectedItems():
             if hasattr(item,'toggle_bordo'):
                 item.toggle_bordo()
+    #==== Utilities ====
+    def mostra_tutti_i_nodi(self):
+        for item in self.scene.items():
+            item.setVisible(True)
 
+    def getGraph(self)-> list[Node] | None:
+
+        text_items = [
+            item for item in self.scene.items()
+            if isinstance(item, TextItem)
+            ]
+        if text_items == [] :
+            return None
+        
+        graph : list[Node] = []
+        for child in text_items :
+            graph.append(child.getNode())
+        
+        return graph
     #==== Documentazione dei comandi ====
     def mostra_documentazione(self):
         # Usiamo l'HTML base per fare una formattazione pulita e leggibile
@@ -339,6 +359,53 @@ class Viewer(QWidget):
         """
         
         QMessageBox.information(self, "Manuale dei Comandi", testo_guida)
+    #==== Salvataggio della mappa ====
+    def salva(self):
+        self.saver.salva_mappa()
+
+class MapSaver():
+    def __init__(self,mapTree :Viewer):
+        self.map = mapTree
+
+    def salva_mappa(self):
+        nome_file, _ = QFileDialog.getSaveFileName(
+                    self.map, 
+                    "Salva Mappa Mentale", 
+                    "", 
+                    "Mappa JSON (*.json);;Tutti i file (*)"
+                )
+                
+        if not nome_file:
+            return 
+
+        # 2. Otteniamo il grafo pulito dalla scena
+        dati_grafo = self.map.getGraph()
+        
+        if dati_grafo is None:
+            QMessageBox.warning(self.map, "Attenzione", "La mappa è vuota, nulla da salvare.")
+            return
+
+        # 3. Creiamo la struttura JSON finale
+        dati_mappa = {
+            "nodi": []
+        }
+
+        # 4. Popoliamo il dizionario sfruttando il metodo nodeToDict che hai creato
+        for nodo in dati_grafo:
+            nodo_dict = nodo.nodeToDict()
+            if nodo_dict is not None:
+                dati_mappa["nodi"].append(nodo_dict)
+        
+        # 5. Salvataggio su file
+        try:
+            with open(nome_file, 'w', encoding='utf-8') as file:
+                json.dump(dati_mappa, file, indent=4)
+            print(f"Mappa salvata con successo in: {nome_file}")
+            QMessageBox.information(self.map, "Successo", "Mappa salvata correttamente!")
+        except Exception as e:
+            print(f"Errore durante il salvataggio: {e}")
+            QMessageBox.critical(self.map, "Errore", f"Impossibile salvare il file:\n{e}")
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     

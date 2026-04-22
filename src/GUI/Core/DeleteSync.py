@@ -1,5 +1,5 @@
 from PyQt6.QtCore import QThread, pyqtSignal
-from src.GUI.DeleteWorker import DeleteWorker
+from src.GUI.Core.DeleteWorker import DeleteWorker
 class DeleteSyncWorker(QThread):
     finished = pyqtSignal()      
     error = pyqtSignal(str)      

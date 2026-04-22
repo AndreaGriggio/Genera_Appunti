@@ -2,7 +2,7 @@ import re
 from typing import Any
 from pydantic import ValidationError
 
-from src.GUI.NotionSchema import NotionDocument, NotionBlock, BlockType
+from src.GUI.Notion.NotionSchema import NotionDocument, NotionBlock, BlockType
 
 
 class NotionParser:

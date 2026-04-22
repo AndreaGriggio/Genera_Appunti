@@ -8,20 +8,20 @@ from PyQt6.QtWidgets import (
 )
 import multiprocessing
 
-from src.GUI.NotionSyncBrancher import NotionSyncWorker
-from src.GUI.GeminiSync import GeminiSyncWorker
-from src.GUI.GeminiAnswer import GeminiAnswer
-from src.GUI.NotionSyncLoader import NotionSyncLoader
-from src.GUI.DeleteSync import DeleteSyncWorker
-from src.GUI.DeleteWorker import DeleteWorker
-from src.GUI.ColorFileSystemModel import ColorFileSystemModel
-from src.GUI.NotionLoader import NotionLoader
-from src.GUI.TranscribeSync import TranscribeSyncWorker
-from src.GUI.TranscribeWorker import TranscribeWorker
-from src.GUI.NotionDownloaderSync import NotionDownloaderSync
-from src.GUI.TranscribeModelLoaderWorker import TranscribeModelLoaderWorker
-from src.GUI.whisperProcess import whisper_lazy_engine
-from src.GUI.PDFViewer import PDFViewerWidget
+from src.GUI.Notion.NotionSyncBrancher import NotionSyncWorker
+from src.GUI.Gen.GeminiSync import GeminiSyncWorker
+from src.GUI.Gen.GeminiAnswer import GeminiAnswer
+from src.GUI.Notion.NotionSyncLoader import NotionSyncLoader
+from src.GUI.Core.DeleteSync import DeleteSyncWorker
+from src.GUI.Core.DeleteWorker import DeleteWorker
+from src.GUI.Core.ColorFileSystemModel import ColorFileSystemModel
+from src.GUI.Notion.NotionLoader import NotionLoader
+from src.GUI.Transcribe.TranscribeSync import TranscribeSyncWorker
+from src.GUI.Transcribe.TranscribeWorker import TranscribeWorker
+from src.GUI.Notion.NotionDownloaderSync import NotionDownloaderSync
+from src.GUI.Transcribe.TranscribeModelLoaderWorker import TranscribeModelLoaderWorker
+from src.GUI.Transcribe.whisperProcess import whisper_lazy_engine
+from src.GUI.MainHub.PDFViewer import PDFViewerWidget
 # 2. QtGui (Componenti grafici e Modelli) -> QFileSystemModel è QUI!
 from PyQt6.QtGui import QShortcut, QKeySequence, QDesktopServices
 from PyQt6.QtCore import Qt, QUrl, QTimer, pyqtSignal

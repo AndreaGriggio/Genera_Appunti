@@ -1,6 +1,6 @@
 from PyQt6.QtCore import QThread, pyqtSignal
-from src.GUI.NotionBrancher import NotionBrancher # Assicurati che l'import sia corretto
-from src.GUI.FolderUpdater import FolderUpdater
+from src.GUI.Notion.NotionBrancher import NotionBrancher # Assicurati che l'import sia corretto
+from src.GUI.Core.FolderUpdater import FolderUpdater
 from src.GUI.config import BASE_ID
 class NotionSyncWorker(QThread):
     # Segnali per comunicare con la GUI

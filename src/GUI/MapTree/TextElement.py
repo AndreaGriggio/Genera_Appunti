@@ -5,13 +5,14 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QGraphicsTextItem, QGraphicsItem, QMenu, QStyleOptionGraphicsItem,QWidget
 from PyQt6.QtGui import QPainter, QPen, QColor,QBrush
 from PyQt6.QtCore import Qt,QPointF
-
+from src.GUI.MapTree.Element import Element
+from src.GUI.MapTree.Node import Node
 class TextItem(QGraphicsTextItem):
     MARGIN = 10
     WIDTH = 1
     BORDER_COLOR = QColor(0,0,0)
     FILL_COLOR = QColor(50,50,50)
-    def __init__(self,text:str,border_color : QColor | None,margin=None,fill=None):
+    def __init__(self,text:str,border_color : QColor | None,margin=None ,fill=None,id = 0 ):
         super().__init__(text)
         self.connected_lines = []
         self.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
@@ -33,6 +34,7 @@ class TextItem(QGraphicsTextItem):
             self.fill = fill
         else :
             self.fill = self.FILL_COLOR
+        self.id = id
         self.bordo = True
         self.document().setDocumentMargin(self.margin)
 
@@ -87,10 +89,16 @@ class TextItem(QGraphicsTextItem):
         azione_modifica = menu.addAction("Modifica contenuto")
         azione_bordi = menu.addAction("Toggle Bordi")
         azione_forma = menu.addAction("Cambia Forma")
+        azione_nascondi = menu.addAction("Nascondi connected")
+        azione_mostra = menu.addAction("Mostra connected")
+
+        
         azione_bordi.setShortcut("Ctrl+t")
         azione_forma.setShortcut("Ctrl+b")
         azione_modifica.setShortcut("Double Click")
-        
+        azione_nascondi.setShortcut("Ctrl+n")
+        azione_mostra.setShortcut("Ctrl+m")
+
         menu.addSeparator()
         azione_elimina = menu.addAction("Elimina")
         
@@ -117,7 +125,10 @@ class TextItem(QGraphicsTextItem):
 
             if self.scene():
                 self.scene().removeItem(self)
-                
+        elif azione_scelta == azione_nascondi:
+            self.hide()
+        elif azione_scelta == azione_mostra:
+            self.show()       
         event.accept()
 
 
@@ -136,8 +147,60 @@ class TextItem(QGraphicsTextItem):
             self.bordo = True
 
         self.update()
+    def hide(self,visitati = None):
+        if visitati is None:
+            visitati = set() 
+            
+        if self in visitati:
+            return
+            
+        visitati.add(self)
+        
+        for linea in self.connected_lines:
+            linea.setVisible(False)
+            
+            if linea.node_end and linea.node_end != self:
+                linea.node_end.setVisible(False)
+                linea.node_end.hide(visitati)
+        
+    def show(self,visitati=None):
+        if visitati is None:
+            visitati = set() 
+            
+        if self in visitati:
+            return
+            
+        visitati.add(self)
+        
+        for linea in self.connected_lines:
+            linea.setVisible(True)
+            
+            if linea.node_end and linea.node_end != self:
+                linea.node_end.setVisible(True)
+                linea.node_end.show(visitati)
+            
 
+    def getElement(self)->Element | None:
 
+        pos = self.scenePos()
 
+        border_hex = self.border_color.name() if hasattr(self.border_color, 'name') else str(self.border_color)
+        fill_hex = self.fill.name() if hasattr(self.fill, 'name') else str(self.fill)
 
+        return Element(pos.x(), pos.y(), border_hex, self.margin, fill_hex, self.id, self.toPlainText())
+    def getNeighbours(self)->list[tuple[int,str]] | None:
+        
+        neighbours : list[tuple[int,str]] = []
+        if not self.connected_lines:
+            return None
+        
+        for line in self.connected_lines:
+    
+            #Ora devo controllare se il nodo di start sono io se si allora inserisco nella tupla il nodo end altrimenti no
+            if line.node_start == self and line.node_end is not None:
+                neighbours.append((line.node_end.id,line.tipo))
+        return neighbours
+
+    def getNode(self)-> Node:
+        return Node(self.getElement(),self.getNeighbours())
 

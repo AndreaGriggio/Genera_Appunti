@@ -1,6 +1,6 @@
 from PyQt6.QtCore import QThread, pyqtSignal
-from src.GUI.GeminiAsker import GeminiAsker
-from src.GUI.GeminiAnswer import GeminiAnswer # Adegua l'import
+from src.GUI.Gen.GeminiAsker import GeminiAsker
+from src.GUI.Gen.GeminiAnswer import GeminiAnswer # Adegua l'import
 from google.genai import types
 from pathlib import Path
 

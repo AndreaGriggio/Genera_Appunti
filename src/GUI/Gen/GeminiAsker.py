@@ -1,6 +1,6 @@
 from google.genai import Client,types,errors
 from src.GUI.config import GEMINI_TOKEN,NOTION_SYSTEM_INSTRUCTION
-from src.GUI.ModelManager import ModelManager
+from src.GUI.Gen.ModelManager import ModelManager
 from pathlib import Path
 
 class GeminiAsker :

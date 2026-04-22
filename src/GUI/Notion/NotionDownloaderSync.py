@@ -1,6 +1,6 @@
-from src.GUI.NotionDownloader import NotionDownloader
-from src.GUI.NotionToMarkdown import NotionToMarkdown
-from src.GUI.MarkdownToPDF import MarkdownToPDF
+from src.GUI.Notion.NotionDownloader import NotionDownloader
+from src.GUI.Convert.NotionToMarkdown import NotionToMarkdown
+from src.GUI.Convert.MarkdownToPDF import MarkdownToPDF
 from PyQt6.QtCore import QThread, pyqtSignal
 from pathlib import Path
 class NotionDownloaderSync(QThread):

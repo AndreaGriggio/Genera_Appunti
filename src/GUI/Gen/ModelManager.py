@@ -3,7 +3,7 @@ from src.GUI.config import (FREE_MODELS,GEMINI_TOKEN,NOTION_SYSTEM_INSTRUCTION,
 from google.genai import Client,types
 from time import time
 import time
-from src.GUI.NotionSchema import NotionDocument
+from src.GUI.Notion.NotionSchema import NotionDocument
 #questa classe serve puramente alla gestione delle risorse disponibili offerete dalle google api
 #al momento con programmazione hardcore facciamo in modo che tenga conto solo per alcuni modelli ha le risposte disponibili o meno
 

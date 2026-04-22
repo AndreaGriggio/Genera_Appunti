@@ -1,6 +1,6 @@
 from pathlib import Path
 from PyQt6.QtCore import QThread, pyqtSignal
-from src.GUI.TranscribeWorker import TranscribeWorker
+from src.GUI.Transcribe.TranscribeWorker import TranscribeWorker
 
 class TranscribeSyncWorker(QThread):
     finished = pyqtSignal()      # Dice "Ho finito!"

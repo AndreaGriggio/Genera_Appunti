@@ -1,5 +1,5 @@
 from PyQt6.QtCore import QThread, pyqtSignal
-from src.GUI.NotionLoader import NotionLoader # Assicurati che l'import sia corretto
+from src.GUI.Notion.NotionLoader import NotionLoader # Assicurati che l'import sia corretto
 from pathlib import Path
 class NotionSyncLoader(QThread):
     # Segnali per comunicare con la GUI
