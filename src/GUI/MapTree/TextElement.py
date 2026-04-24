@@ -36,6 +36,7 @@ class TextItem(QGraphicsTextItem):
             self.fill = self.FILL_COLOR
         self.id = id
         self.bordo = True
+        self.is_pdf_export = False
         self.document().setDocumentMargin(self.margin)
 
     def mouseDoubleClickEvent(self, event):
@@ -50,21 +51,34 @@ class TextItem(QGraphicsTextItem):
 
     def paint(self, painter: QPainter | None, option : QStyleOptionGraphicsItem | None, widget : QWidget | None):
         
-        
-        sfondo = QBrush(self.FILL_COLOR)
+        # 1. Scegliamo i colori in base allo stato attuale
+        if getattr(self, 'is_pdf_export', False):
+            sfondo = QBrush(Qt.GlobalColor.white)
+            colore_bordo = Qt.GlobalColor.black
+        else:
+            sfondo = QBrush(self.fill)
+            colore_bordo = self.border_color
+
+        # 2. Applichiamo lo sfondo
         painter.setBrush(sfondo)
+        
+        # 3. Gestiamo il bordo
         rect = self.boundingRect()
-        if self.bordo :
-            pen = QPen(self.border_color)
+        if self.bordo or getattr(self, 'is_pdf_export', False):
+            # Forziamo il bordo visibile nel PDF per non perdere i confini dei nodi bianchi
+            pen = QPen(colore_bordo)
             pen.setWidth(self.WIDTH)
             painter.setPen(pen)
-        else :
+        else:
             painter.setPen(Qt.PenStyle.NoPen)
+            
+        # 4. Disegniamo la forma
         if self.forma == "rettangolo":
             painter.drawRect(rect)
         elif self.forma == "ellisse":
             painter.drawEllipse(rect)
             
+        # 5. Lasciamo che la classe madre disegni il testo sopra la forma
         super().paint(painter, option, widget)
 
     def itemChange(self, change: QGraphicsItem.GraphicsItemChange, value: Any) -> Any:
@@ -203,4 +217,17 @@ class TextItem(QGraphicsTextItem):
 
     def getNode(self)-> Node:
         return Node(self.getElement(),self.getNeighbours())
-
+    def prepara_per_pdf(self, in_esportazione: bool):
+        """Attiva o disattiva la modalità di stampa in bianco e nero."""
+        self.is_pdf_export = in_esportazione
+        
+        if in_esportazione:
+            # Testo nero per il PDF
+            self.setDefaultTextColor(Qt.GlobalColor.black)
+        else:
+            # Ripristina il testo chiaro (assumendo che il tuo default sia bianco/grigio)
+            # Cambia questo colore se il tuo testo di base è diverso
+            self.setDefaultTextColor(Qt.GlobalColor.white) 
+            
+        # Diciamo a Qt di ridisegnare l'elemento chiamando paint()
+        self.update()

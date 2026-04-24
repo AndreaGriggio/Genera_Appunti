@@ -4,6 +4,7 @@ from google.genai import Client,types
 from time import time
 import time
 from src.GUI.Notion.NotionSchema import NotionDocument
+from src.GUI.MapTree.MapSchema import MapDocument
 #questa classe serve puramente alla gestione delle risorse disponibili offerete dalle google api
 #al momento con programmazione hardcore facciamo in modo che tenga conto solo per alcuni modelli ha le risposte disponibili o meno
 
@@ -116,7 +117,7 @@ class ModelManager:
                     m["available"] = False
                     break
 
-    def get_config(self, model_name: str, force_json: bool = False, system_instruction: str = " ") -> types.GenerateContentConfig:
+    def get_config(self, model_name: str, force_json: bool = False,gen_map:bool = False, system_instruction: str = " ") -> types.GenerateContentConfig:
         """
         Restituisce la configurazione ottimizzata.
         Accetta 'system_instruction' per passare il prompt di ruolo.
@@ -125,7 +126,10 @@ class ModelManager:
         
         if not model_info:
             return types.GenerateContentConfig()#Quando None torniamo zero configurazioni
-
+        if gen_map : 
+            schema = MapDocument
+        else:
+            schema = NotionDocument
         # --- CASO 1: GEMINI (Supporto JSON Nativo + Config Avanzata) ---
         if model_info["config"]:
             if force_json:
@@ -135,7 +139,7 @@ class ModelManager:
                     top_p=0.95,             # Standard per diversità
                     max_output_tokens=MAX_TOKENS, # Massimo output possibile
                     response_mime_type="application/json", # Forza JSON
-                    response_schema=NotionDocument,
+                    response_schema=schema,
                     system_instruction=system_instruction  # Inserisce il tuo prompt qui
                 )
             else:

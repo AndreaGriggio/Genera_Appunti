@@ -1,6 +1,6 @@
 
 import sys
-from src.GUI.Core.Filemanager import FileManagerWindow
+from src.GUI.Core.Manager import Manager
 from src.GUI.MapTree.MapTreeGrid import Viewer, MapTreeGrid
 from src.GUI.Core.SettingsDialog import open_settings
 from src.GUI.MainHub.DockPanel import PannelloDock
@@ -42,7 +42,7 @@ class Hub(QMainWindow):
 
 
         azioni = [
-            (FILEMANAGER, "Ctrl+F", FileManagerWindow, True),
+            (FILEMANAGER, "Ctrl+F", Manager, True),
             (MAPPA, "Ctrl+M", lambda: Viewer(MapTreeGrid()), False),
         ]
 
@@ -59,11 +59,7 @@ class Hub(QMainWindow):
         azione_impostazioni.triggered.connect(self.apri_impostazioni)
         menuFinestre.addAction(azione_impostazioni)
         self.setDockOptions(QMainWindow.DockOption.AllowTabbedDocks | QMainWindow.DockOption.AnimatedDocks)
-        # # ==== Tab centrale ====
-        # self.icona_x = self.style().standardIcon(QStyle.StandardPixmap.SP_DialogCloseButton)
-        # self.tab = DetachableTabWidget()
-        # self.tab.setAcceptDrops(True)
-        # self.setCentralWidget(self.tab)
+        
 
     def apri_widget(self, titolo: str, costruttore, singleton: bool = True):
         if singleton:
@@ -72,6 +68,8 @@ class Hub(QMainWindow):
                 widget = costruttore()
                 self.singleton_aperti[titolo] = widget
                 self._crea_e_aggancia_dock(widget, titolo)
+                if isinstance(widget,Manager):
+                    widget.new_tab_ready.connect(self._crea_e_aggancia_dock)
         else:
             widget = costruttore()
             self._crea_e_aggancia_dock(widget, titolo)
@@ -90,7 +88,7 @@ class Hub(QMainWindow):
 
         # Posizionamento iniziale (Default)
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, dock)
-
+        
 
     def _applica_snap(self, dock:PannelloDock):
         """Gestisce i 3 casi di Snap in alto , destra e sinistra"""
@@ -142,59 +140,6 @@ class Hub(QMainWindow):
             fm = self.singleton_aperti.get(FILEMANAGER)
             if fm is not None:
                 fm.model.refresh_histories()
-    # # ------------------------------------------------------------------
-    # def apri_widget(self, titolo: str, costruttore, singleton: bool = True):
-    #     if singleton:
-    #         widget = self.singleton_aperti.get(titolo)
-    #         if widget is None:
-    #             widget = costruttore()
-    #             self.singleton_aperti[titolo] = widget
-    #             self._aggiungi_tab_interno(widget, titolo)
-    #             # Pulisce il dizionario se il widget viene distrutto esternamente
-    #             widget.destroyed.connect(lambda: self.singleton_aperti.pop(titolo, None))
-    #     else:
-    #         widget = costruttore()
-    #         self._aggiungi_tab_interno(widget, titolo)
-
-    # def _aggiungi_tab_interno(self, widget: QWidget, titolo: str):
-    #     """Aggiunge il widget come tab e gli applica il bottone di chiusura."""
-    #     indice = self.tab.addTab(widget, titolo)
-    #     self._applica_bottone(indice, widget)
-
-    # # ------------------------------------------------------------------
-    # def _applica_bottone(self, indice: int, widget: QWidget):
-    #     """
-    #     Crea il bottone X e lo collega a chiudi_scheda passando il WIDGET,
-    #     non l'indice — così funziona anche dopo riordini/rimozioni di tab.
-    #     """
-    #     btn_chiudi = QPushButton()
-    #     btn_chiudi.setIcon(self.icona_x)
-    #     btn_chiudi.setStyleSheet("background-color: transparent; border: none;")
-    #     btn_chiudi.clicked.connect(lambda: self.chiudi_scheda(widget))
-    #     self.tab.tabBar().setTabButton(indice, QTabBar.ButtonPosition.RightSide, btn_chiudi)
-
-    # # ------------------------------------------------------------------
-    # def chiudi_scheda(self, widget: QWidget):
-    #     """Rimuove la tab corrispondente al widget e lo distrugge."""
-    #     indice = self.tab.indexOf(widget)   # ✅ indice sempre aggiornato
-    #     if indice != -1:
-    #         self.tab.removeTab(indice)
-    #     widget.deleteLater()                # ✅ rilascia la memoria correttamente
-
-    # def safe_remove(self, widget: QWidget):
-    #     """Rimozione sicura senza distruggere il widget (es. quando viene staccato)."""
-    #     if widget is not None:
-    #         indice = self.tab.indexOf(widget)
-    #         if indice != -1:
-    #             self.tab.removeTab(indice)
-
-    # # ------------------------------------------------------------------
-    # 
-
-    # # ------------------------------------------------------------------
-    # def aggiungi_tab(self, widget: QWidget, name: str):
-    #     """API pubblica per aggiungere tab dall'esterno (es. tab staccate)."""
-    #     self._aggiungi_tab_interno(widget, name)
 
 
 if __name__ == "__main__":

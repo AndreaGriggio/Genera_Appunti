@@ -8,6 +8,7 @@ class GeminiAnswer:
         # 1. Definiamo il file della lista nera (storico)
         self.history_file = Path(DATAPATH) / "history_pdf.json"
         
+        
         # Se la lista nera non esiste, creiamola vuota
         if not self.history_file.exists():
             with open(self.history_file, "w", encoding="utf-8") as f:
@@ -29,13 +30,15 @@ class GeminiAnswer:
             with open(self.history_file, "w", encoding="utf-8") as f:
                 json.dump(history, f, indent=4)
 
-    def save_answer(self, answer_text: str, pdf_path: str,is_json:bool = True):
+    def save_answer(self, answer_text: str, pdf_path: str,is_json:bool = True,is_map:bool = False):
         """Salva la risposta di Gemini in un file di testo e aggiorna la blacklist."""
         path_obj = Path(pdf_path)
         nome_pdf = path_obj.stem # Prende "Appunti_Fisica" da "Appunti_Fisica.pdf"
         cartella_pdf = path_obj.parent # Prende "Appunti_Fisica" da "Appunti_Fisica.pdf"
         # Salvataggio Appunti (puoi usare .json o .txt in base a come ti risponde Gemini)
-        if is_json:
+        if is_map:
+            output_file = cartella_pdf /f"{nome_pdf}.mappa"
+        elif is_json:
             output_file = cartella_pdf / f"{nome_pdf}.json"
         else: 
             output_file = cartella_pdf/f"{nome_pdf}.txt"
@@ -44,4 +47,5 @@ class GeminiAnswer:
             f.write(answer_text)
             
         # Aggiunta alla lista nera
-        self.add_to_history(path_obj.name)
+        if not is_map:
+            self.add_to_history(path_obj.name)

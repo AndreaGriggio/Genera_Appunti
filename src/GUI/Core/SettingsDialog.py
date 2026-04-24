@@ -257,10 +257,7 @@ def _save_settings(data: dict) -> bool:
         print(f"Errore salvataggio settings: {e}")
         return False
 
-
-# ============================================================
-#  Widget riutilizzabile: selettore colore
-# ============================================================
+#Classe selettore colore
 class _ColorPicker(QWidget):
     """Riga con etichetta, anteprima colore e bottone 'Scegli'."""
 
@@ -302,10 +299,7 @@ class _ColorPicker(QWidget):
     def hex_color(self) -> str:
         return self._color.name()
 
-
-# ============================================================
-#  Sezione 1 — Colori
-# ============================================================
+#Classe gestione colori
 class _ColorsTab(QWidget):
     def __init__(self, settings: dict, parent=None):
         super().__init__(parent)
@@ -348,10 +342,7 @@ class _ColorsTab(QWidget):
             "COLOR_CREATED": self._created.hex_color(),
         }
 
-
-# ============================================================
-#  Sezione 2 — Parametri modello
-# ============================================================
+#Classe gestione parametri di modello
 class _ParamsTab(QWidget):
     def __init__(self, settings: dict, parent=None):
         super().__init__(parent)
@@ -427,10 +418,7 @@ class _ParamsTab(QWidget):
             "SYSTEM_PROMPT": self._prompt.toPlainText(),
         }
 
-
-# ============================================================
-#  Sezione 3 — Chiavi API
-# ============================================================
+#Classe gestione chiavi API
 class _ApiKeysTab(QWidget):
     def __init__(self, settings: dict, parent=None):
         super().__init__(parent)
@@ -516,10 +504,7 @@ class _ApiKeysTab(QWidget):
             "GEMINI_TOKEN": self._gemini.text().strip(),
         }
 
-
-# ============================================================
-#  Dialogo principale
-# ============================================================
+#Classe menu principale impostazioni
 class SettingsDialog(QDialog):
     """
     Dialogo modale per le impostazioni.
@@ -638,10 +623,7 @@ class SettingsDialog(QDialog):
             }
         """)
 
-
-# ============================================================
-#  Funzione di utilità per aprire il dialogo dalla GUI
-# ============================================================
+#Funzione per aprire le impostazioni
 def open_settings(parent=None) -> bool:
     """
     Apre il dialogo impostazioni in modalità modale.
@@ -652,9 +634,6 @@ def open_settings(parent=None) -> bool:
     return dialog.settings_changed
 
 
-# ============================================================
-#  Test standalone
-# ============================================================
 if __name__ == "__main__":
     import sys
     from PyQt6.QtWidgets import QApplication

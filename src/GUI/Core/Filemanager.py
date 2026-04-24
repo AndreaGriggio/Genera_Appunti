@@ -130,6 +130,14 @@ class FileManagerWindow(QWidget):
 
         #azione del bottone
         self.btn_carica.clicked.connect(self.carica)
+        
+        #--- BOTTONE CREA MAPPA ---
+        self.btn_crea_mappa = QPushButton("Crea Mappa")
+        self.btn_crea_mappa.setFixedHeight(BTN_HEIGHT)
+        self.btn_crea_mappa.setStyleSheet("padding: 5px;")
+
+        #azione del bottone
+        self.btn_crea_mappa.clicked.connect(self.crea_mappa)
 
         #--- BOTTONE AGGIORNA ---
         self.btn_aggiorna = QPushButton("Aggiorna")
@@ -144,6 +152,7 @@ class FileManagerWindow(QWidget):
         self.btn_pdf.setStyleSheet("padding: 5px;")
 
         self.btn_pdf.clicked.connect(self.scarica_pdf)
+
 
 
 
@@ -294,7 +303,24 @@ class FileManagerWindow(QWidget):
         self._begin_operation()
         self.task_queue.put({"paths":self.audio})
         
-    
+    def crea_mappa(self):
+        print("Creazione in corso...")
+        self.log_area.clear()
+
+        file_selezionati = self.tree_view.selectedIndexes()
+
+        if not file_selezionati:
+            return
+        
+        raw_paths = [self.model.filePath(index) for index in file_selezionati
+                    if not self.model.isDir(index)]
+        file_paths = list(set(raw_paths))
+
+        audio_paths = [Path(f) for f in file_paths
+                    if Path(f).suffix.lower() in TranscribeWorker.SUPPORTED_FORMATS]
+        pdf_paths   = [Path(f) for f in file_paths
+                    if Path(f).suffix.lower() == ".pdf"]
+        
 
     def crea(self):
         print("Creazione in corso...")

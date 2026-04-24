@@ -14,12 +14,13 @@ class GeminiSyncWorker(QThread):
     progress = pyqtSignal(int, int) # Nuovo: Invia (File_corrente, File_totali)
 
     # GLI ARGOMENTI VANNO QUI
-    def __init__(self, prompt: str, paths: list, pdf: bool = True, json_mode: bool = True):
+    def __init__(self, prompt: str, paths: list, pdf: bool = True, json_mode: bool = True,is_map:bool = False):
         super().__init__()
         self.prompt = prompt
         self.pdf_paths = paths # È una LISTA di percorsi
         self.pdf = pdf
         self.json_mode = json_mode
+        self.is_map = is_map
 
     # RUN NON ACCETTA ARGOMENTI
     def run(self):
@@ -51,7 +52,8 @@ class GeminiSyncWorker(QThread):
                     prompt=self.prompt, 
                     path=str(path), 
                     pdf=self.pdf, 
-                    is_json=self.json_mode
+                    is_json=self.json_mode,
+                    gen_map=self.is_map
                 )
                 if not l:
                     self.log.emit(f"⚠️ Errore o modello esaurito per: {nome_file}")
@@ -61,10 +63,12 @@ class GeminiSyncWorker(QThread):
 
                 if isinstance(l[1],bool): self.json_mode = l[1]
 
+                if isinstance(l[2],bool):self.is_map = l[2]
+
                 
                 # 2. Salva la risposta se c'è
                 if response.text:
-                    answer_handler.save_answer(response.text, path,self.json_mode)
+                    answer_handler.save_answer(response.text, path,self.json_mode,self.is_map)
                     self.log.emit(f"Salvato con successo: {nome_file}")
                 else:
                     self.log.emit(f"Errore o modello esaurito per: {nome_file}")

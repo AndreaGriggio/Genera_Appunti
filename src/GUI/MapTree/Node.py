@@ -11,7 +11,9 @@ class Node():
         
         return {
             "element":self.value.elementTodict(),
-            "n":self.neighbours
+            "n":[
+                {"target":n_id,"tipo":tipo}
+                for n_id,tipo in (self.neighbours or [])]
 
         }
     

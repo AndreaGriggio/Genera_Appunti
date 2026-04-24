@@ -4,6 +4,7 @@ from src.GUI.MapTree.TextElement import TextItem
 from src.GUI.MapTree.LineElement import LineItem
 from src.GUI.MapTree.Node import Node
 from src.GUI.MapTree.Element import Element
+from pathlib import Path
 import json
 
 from PyQt6.QtWidgets import (
@@ -12,8 +13,13 @@ from PyQt6.QtWidgets import (
     QLabel, QWidget,QMenuBar,QMessageBox,QGraphicsItem,
     QFileDialog
 )
-from PyQt6.QtGui import QPen,QColor,QKeySequence,QCursor,QShortcut,QBrush,QTransform,QPainterPath
-from PyQt6.QtCore import Qt,pyqtSignal
+from PyQt6.QtGui import (
+    QPen,QColor,QKeySequence,QCursor,
+    QShortcut,QBrush,QTransform,
+    QPainterPath,QPageLayout,QPageSize,
+    QPainter,QPdfWriter
+)
+from PyQt6.QtCore import Qt,pyqtSignal,QRectF
 
 
 SHIFT = 40
@@ -34,8 +40,15 @@ class MapTreeGrid(QGraphicsScene):
         self.rettangolo_visivo = None
         self.linea_in_costruzione = None
         self.tipo_linea = "spline"
+        self.nascondi_sfondo_pdf = False
 
     def drawBackground(self, painter, rect):
+
+        if getattr(self, 'nascondi_sfondo_pdf', False):
+            # Se stiamo esportando, mettiamo uno sfondo bianco pulito
+            painter.fillRect(rect, Qt.GlobalColor.white)
+            return
+        # ------------------
 
         super().drawBackground(painter, rect)
 
@@ -143,17 +156,24 @@ class MapTreeGrid(QGraphicsScene):
 
 
 class Viewer(QWidget):
+    """ Visualizza le mappe mentali, ne gestisce il salvataggio con classi helper """
     new_tab_ready = pyqtSignal(QWidget,str)
     ZOOM_FACTOR = 1.2
     BASE_ZOOM = 1.0
-    def __init__(self, scene: MapTreeGrid):
+    def __init__(self, scene: MapTreeGrid,titolo:str|None ="",saving_path:Path| None = None ):
         self.usable_id = 0
         super().__init__()
+        self.saving_path = saving_path
+        self.title = titolo if titolo else "Nuova Mappa"
+        self.setWindowTitle(f"Edito Mappe - {self.title}")
         #==== Aggiunta della Scena Oggetti ====
         # La scena ci serve da contenitore per gli elementi della mappa
         self.view = QGraphicsView(scene)
         self.scene = scene
+
         self.saver = MapSaver(self)
+        self.loader = MapLoader(self)
+
         #Impostazione di DRAG
         self.view.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
         
@@ -182,8 +202,11 @@ class Viewer(QWidget):
         action_testo = menu_aggiunte.addAction("Testo")
         menu_linee = menu_aggiunte.addMenu("Linee")
         menu_utility = barra.addMenu("Utilita")
-        action_salva = barra.addAction("Salva")
+        menu_salva = barra.addMenu("Esporta")
 
+        action_load = barra.addAction("Carica")
+        action_salva = menu_salva.addAction("Salva in .Mappa")
+        action_pdf = menu_salva.addAction("Salva come pdf")
 
         action_mostra_nodi = menu_utility.addAction("Mostra Tutti i Nodi")
         action_mostra_nodi.triggered.connect(self.mostra_tutti_i_nodi)
@@ -194,11 +217,16 @@ class Viewer(QWidget):
         action_testo.setShortcut("Ctrl+t")
         action_linea.setShortcut("Ctrl+l")
         action_retta.setShortcut("Ctrl+r")
+        action_salva.setShortcut("Ctrl+s")
+
+
 
         action_testo.triggered.connect(self.add_testo)
         action_linea.triggered.connect(self.spline_type)
         action_retta.triggered.connect(self.rect_type)
         action_salva.triggered.connect(self.salva)
+        action_pdf.triggered.connect(self.pdf)
+        action_load.triggered.connect(self.carica)
 
         #==== Tooltips Comandi ====
         menu_doc = barra.addMenu("Documentazione")
@@ -361,50 +389,236 @@ class Viewer(QWidget):
         QMessageBox.information(self, "Manuale dei Comandi", testo_guida)
     #==== Salvataggio della mappa ====
     def salva(self):
-        self.saver.salva_mappa()
+        self.saver.salva_mappa(self.title,self.saving_path)
+    def carica(self):
+        self.loader.carica_mappa(self.saving_path)
+    def pdf(self):
+        self.saver.esporta_pdf(self.title,self.saving_path)
 
 class MapSaver():
     def __init__(self,mapTree :Viewer):
         self.map = mapTree
+    def esporta_pdf(self, titolo:str |None="Mappa_Concettuale",saving_path :Path | None = None):
+        """
+        Esporta il contenuto della scena in un file PDF, ignorando UI e griglia.
+        """
+        if not titolo:
+            titolo = "Nuova_Mappa"
+            
 
-    def salva_mappa(self):
+        if saving_path is not None:
+
+            percorso = str(saving_path.with_suffix('.pdf'))
+        else:
+            percorso = f"{titolo}.pdf"
+
+        path, _ = QFileDialog.getSaveFileName(
+            None, 
+            "Salva Mappa come PDF",
+            percorso, 
+            "Tutti i file (*)"
+        )
+        
+        if not path:
+            return
+
+        # Configura il PDF Writer
+        writer = QPdfWriter(path)
+        writer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
+        writer.setPageOrientation(QPageLayout.Orientation.Landscape)
+        writer.setCreator("Generatore Appunti")
+        writer.setTitle(titolo)
+
+        painter = QPainter(writer)
+        
+        # 1. Troviamo il riquadro esatto che contiene i nodi (ignorando i -5000 vuoti)
+        area_nodi = self.map.scene.itemsBoundingRect()
+        
+        # Se la mappa è vuota, crea un PDF bianco e fermati
+        if area_nodi.isNull():
+            painter.end()
+            return
+            
+        # Aggiungiamo un po' di margine (es. 20 pixel) attorno ai nodi per non attaccarli ai bordi del PDF
+        area_nodi.adjust(-20, -20, 20, 20)
+
+        # 2. Spegniamo la griglia scura
+        self.map.scene.nascondi_sfondo_pdf = True
+
+        for item in self.map.scene.items():
+            if isinstance(item, TextItem):
+                if hasattr(item, 'prepara_per_pdf'):
+                    item.prepara_per_pdf(True)
+
+        # 3. Definiamo l'area del foglio A4 dove andremo a disegnare
+        area_foglio = QRectF(painter.viewport())
+
+        # 4. SCATTIAMO LA FOTO ALLA SCENA (NON AL WIDGET)
+        # Passando aspectRatioMode, Qt scala la mappa in automatico per farla stare perfettamente nell'A4
+        self.map.scene.render(
+            painter, 
+            target=area_foglio, 
+            source=area_nodi, 
+            mode=Qt.AspectRatioMode.KeepAspectRatio
+        )
+        
+        painter.end()
+        
+        # 5. Riaccendiamo la griglia scura per l'utente
+        self.map.scene.nascondi_sfondo_pdf = False
+        for item in self.map.scene.items():
+            if isinstance(item, TextItem):
+                if hasattr(item, 'prepara_per_pdf'):
+                    item.prepara_per_pdf(False)
+        self.map.view.viewport().update() # Forza l'aggiornamento visivo a schermo
+
+        QMessageBox.information(None, "Successo", f"Mappa salvata correttamente in:\n{path}")
+
+    def salva_mappa(self,titolo : str|None = "Mappa Mentale",saving_path : Path | None = None):
+        if titolo is None:
+            titolo = "Mappa Mentale"
+            
+
+        if saving_path is not None:
+            percorso = str(saving_path)
+        else:
+            percorso = f"{titolo}.mappa"
+
         nome_file, _ = QFileDialog.getSaveFileName(
-                    self.map, 
-                    "Salva Mappa Mentale", 
-                    "", 
-                    "Mappa JSON (*.json);;Tutti i file (*)"
-                )
+            self.map, 
+            "Salva Mappa Mentale",  
+            percorso,
+            "Tutti i file (*)"
+        )
+        
                 
         if not nome_file:
             return 
 
-        # 2. Otteniamo il grafo pulito dalla scena
         dati_grafo = self.map.getGraph()
         
         if dati_grafo is None:
             QMessageBox.warning(self.map, "Attenzione", "La mappa è vuota, nulla da salvare.")
             return
 
-        # 3. Creiamo la struttura JSON finale
         dati_mappa = {
             "nodi": []
         }
 
-        # 4. Popoliamo il dizionario sfruttando il metodo nodeToDict che hai creato
         for nodo in dati_grafo:
             nodo_dict = nodo.nodeToDict()
             if nodo_dict is not None:
                 dati_mappa["nodi"].append(nodo_dict)
         
-        # 5. Salvataggio su file
         try:
             with open(nome_file, 'w', encoding='utf-8') as file:
                 json.dump(dati_mappa, file, indent=4)
             print(f"Mappa salvata con successo in: {nome_file}")
+            nuovo_path = Path(nome_file)
+            self.map.saving_path = nuovo_path
+            self.map.title = nuovo_path.stem  
+            self.map.setWindowTitle(self.map.title)
             QMessageBox.information(self.map, "Successo", "Mappa salvata correttamente!")
         except Exception as e:
             print(f"Errore durante il salvataggio: {e}")
             QMessageBox.critical(self.map, "Errore", f"Impossibile salvare il file:\n{e}")
+class MapLoader():
+
+    def __init__(self,mapTree: Viewer):
+        self.map = mapTree
+
+    def carica_mappa(self,path : Path| None = None):
+        percorso = str(path.parent) if path and path.exists() else ""
+            
+        nome_file, _ = QFileDialog.getOpenFileName(
+            self.map,
+            "Carica Mappa Mentale",
+            percorso,
+            "Mappa  (*.mappa);;Tutti i file (*)"
+        )
+        
+        if not nome_file:
+            return
+        
+        if self.process_file(nome_file):
+            
+            nuovo_path = Path(nome_file)
+            self.map.saving_path = nuovo_path
+            self.map.title = nuovo_path.stem
+            self.map.setWindowTitle(self.map.title)
+
+    def process_file(self, file_path):
+        try:
+            with open(file_path, 'r', encoding='utf-8') as file:
+                dati_mappa = json.load(file)
+        except Exception as e:
+            QMessageBox.critical(self.map, "Errore", f"Impossibile leggere il file:\n{e}")
+            return
+
+        if "nodi" not in dati_mappa:
+            QMessageBox.warning(self.map, "Formato Non Valido", "Il file non contiene una mappa compatibile.")
+            return
+
+        self.map.scene.clear()
+        
+        nodi_creati = {}  
+        max_id = -1      
+
+        for nodo_data in dati_mappa["nodi"]:
+            elem = nodo_data.get("element")
+            if not elem:
+                continue
+
+            node_id = elem.get("id", 0)
+            max_id = max(max_id, node_id)
+            testo = elem.get("text", "")
+  
+            border_color = QColor(elem.get("border", "#000000"))
+            fill_color = QColor(elem.get("fill", "#323232"))
+            margin = elem.get("margin", 10)
+
+            nuovo_nodo = TextItem(testo, border_color, margin, fill_color, node_id)
+            nuovo_nodo.setPos(elem.get("x", 0.0), elem.get("y", 0.0))
+            
+            self.map.scene.addItem(nuovo_nodo)
+            nodi_creati[node_id] = nuovo_nodo
+        
+        for nodo_data in dati_mappa["nodi"]:
+            elem = nodo_data.get("element")
+            vicini = nodo_data.get("n", [])
+            
+            if not elem or not vicini:
+                continue
+
+            start_id = elem.get("id")
+            nodo_start = nodi_creati.get(start_id)
+
+            if not nodo_start:
+                continue
+
+            for vicino in vicini:
+                # 'vicino' è una lista tipo: [target_id, "tipo_linea"]
+            
+                target_id = vicino.get("target")
+                tipo_linea = vicino.get("tipo")
+
+                nodo_end = nodi_creati.get(target_id)
+                
+                if nodo_end:
+                    
+                    linea = LineItem(node_start=nodo_start, node_end=nodo_end, tipo=tipo_linea)
+                    
+                    
+                    nodo_start.connected_lines.append(linea)
+                    nodo_end.connected_lines.append(linea)
+                    
+                    
+                    self.map.scene.addItem(linea)
+                    linea.aggiorna_posizione()
+
+        self.map.usable_id = max_id + 1
+
+        QMessageBox.information(self.map, "Successo", "Mappa caricata correttamente!")
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
@@ -415,7 +629,7 @@ if __name__ == "__main__":
     map_scene.addItem(item)
     
     # Istanziamo il nostro Widget Contenitore
-    viewer = Viewer(map_scene)
+    viewer = Viewer(scene=map_scene,titolo=None,)
     viewer.resize(800, 600)
     viewer.setWindowTitle("Editor Mappe")
     viewer.show()

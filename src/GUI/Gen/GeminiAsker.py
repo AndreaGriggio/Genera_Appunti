@@ -1,5 +1,5 @@
 from google.genai import Client,types,errors
-from src.GUI.config import GEMINI_TOKEN,NOTION_SYSTEM_INSTRUCTION
+from src.GUI.config import GEMINI_TOKEN,NOTION_SYSTEM_INSTRUCTION,MENTAL_MAP_SYSTEM_INSTRUCTION
 from src.GUI.Gen.ModelManager import ModelManager
 from pathlib import Path
 
@@ -15,10 +15,11 @@ class GeminiAsker :
             if mode["available"]:
                 self.current_model = mode["name"]
                 break
-    def ask(self, prompt: str, path: str = "", pdf: bool = False, is_json: bool = False) -> list[types.GenerateContentResponse |bool]| None:
+    def ask(self, prompt: str, path: str = "", pdf: bool = False, is_json: bool = False,gen_map : bool = False) -> list[types.GenerateContentResponse |bool]| None:
         """
         Invia una richiesta a Gemini.
-        Gestisce automaticamente il cambio modello in caso di errore 429 (Quota).
+        Gestisce automaticamente cambi di modelli.
+        Gestisce automaticamente errori di chiamata API
         """
         if not prompt : 
             return None
@@ -39,6 +40,8 @@ class GeminiAsker :
             model_name = l[0] 
             if isinstance(l[1],bool):
                 json=l[1]
+            else :
+                json = False
         else :
             model_name = None
             json = False
@@ -48,9 +51,13 @@ class GeminiAsker :
             return None
 
         print(f"Tentativo con modello: {model_name}")
+        if gen_map :
+            instructions = MENTAL_MAP_SYSTEM_INSTRUCTION
+        else :
+            instructions = NOTION_SYSTEM_INSTRUCTION
 
         # 2. CONFIGURAZIONE
-        config = self.manager.get_config(model_name, force_json=is_json,system_instruction=NOTION_SYSTEM_INSTRUCTION)
+        config = self.manager.get_config(model_name,gen_map=gen_map, force_json=json,system_instruction=instructions)
 
         # 3. PREPARAZIONE CONTENUTI
         contents = []
@@ -81,7 +88,7 @@ class GeminiAsker :
                 contents=contents,
                 config=config
             )
-            return [response, is_json]
+            return [response, json,gen_map]
  
         except errors.ClientError as e:
             error_code = e.code if hasattr(e, "code") else 0
