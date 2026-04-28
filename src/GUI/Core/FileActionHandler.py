@@ -70,9 +70,12 @@ class FileActionHandler(QObject):
         - Audio → prima trascrizione Whisper, poi Gemini sul testo prodotto
         """
         audio = [p for p in file_paths if p.suffix.lower() in TranscribeWorker.SUPPORTED_FORMATS]
-        pdfs  = [p for p in file_paths if p.suffix.lower() == ".pdf"]
+        pdfs  = [p for p in file_paths if p.suffix.lower() == ".pdf" ]
+        txts = [p for p in file_paths if p.suffix.lower() == ".txt"]
+        print(txts)
 
         pdf_da_elaborare = self._filter_già_elaborati(pdfs)
+        txt_da_elaborare = self._filter_già_elaborati(txts)
 
         if pdf_da_elaborare:
             worker = GeminiSyncWorker(
@@ -84,7 +87,16 @@ class FileActionHandler(QObject):
                 )
             worker.log.connect(self.log)
             self._orc.start_worker(worker)
-
+        if txt_da_elaborare:
+            worker = GeminiSyncWorker(
+                    prompt=_GEMINI_PROMPT,
+                    paths=txt_da_elaborare,
+                    is_map=is_map,
+                    pdf=False,
+                    json_mode=json_mode
+                    )
+            worker.log.connect(self.log)
+            self._orc.start_worker(worker)
         if audio:
             self.log.emit(f"Trovati {len(audio)} file audio, avvio trascrizione...")
             self._pending_pdf_paths = pdf_da_elaborare

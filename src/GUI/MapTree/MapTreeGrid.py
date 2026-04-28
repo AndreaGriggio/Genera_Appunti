@@ -17,7 +17,7 @@ from PyQt6.QtGui import (
     QPen,QColor,QKeySequence,QCursor,
     QShortcut,QBrush,QTransform,
     QPainterPath,QPageLayout,QPageSize,
-    QPainter,QPdfWriter
+    QPainter,QPdfWriter,QPainterPathStroker
 )
 from PyQt6.QtCore import Qt,pyqtSignal,QRectF
 
@@ -95,13 +95,71 @@ class MapTreeGrid(QGraphicsScene):
             self.addItem(self.rettangolo_visivo)
             event.accept()
             return
-        return super().mousePressEvent(event)
+        #L'idea che ci sta dietro è che dobbiamo modificare la linea permettendoci flessibilità durante la modifica
+        if event.button() == Qt.MouseButton.LeftButton:
+            
+            obj = self.itemAt(event.scenePos(), QTransform())
+
+            if isinstance(obj, LineItem):
+                line = obj
+                near_start = line.is_click_near_node(line.node_start, event.scenePos())
+                near_end   = line.is_click_near_node(line.node_end,   event.scenePos())
+
+                if near_start or near_end:
+                    self.linea_in_costruzione = line
+
+                    if near_start:
+
+                        self._moving_end = "start"
+                        line.node_start.connected_lines.remove(line)
+                        line.node_start = None
+                    else:
+
+                        self._moving_end = "end"
+                        line.node_end.connected_lines.remove(line)
+                        line.node_end = None
+                    event.accept()
+                    return
     
+        return super().mousePressEvent(event)
+
+
+    def shape(self) -> QPainterPath:
+        """
+        Area di click più larga del path visivo.
+        QPainterPathStroker crea un'area attorno al path esistente.
+        """
+        stroker = QPainterPathStroker()
+        stroker.setWidth(12)          
+        stroker.setCapStyle(Qt.PenCapStyle.RoundCap)
+        stroker.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        return stroker.createStroke(self.path())
     def mouseMoveEvent(self, event) -> None:
         if self.linea_in_costruzione:
-            self.linea_in_costruzione.update_using_qpoint(self.linea_in_costruzione.node_start.scenePos()+self.linea_in_costruzione.node_start.boundingRect().center(),event.scenePos())
+            line = self.linea_in_costruzione
+
+            if line.node_start is None and line.node_end is not None:
+  
+                anchor = line.node_end.scenePos() + line.node_end.boundingRect().center()
+                line.update_using_qpoint(event.scenePos(), anchor)
+    
+            elif line.node_end is None and line.node_start is not None:
+
+                anchor = line.node_start.scenePos() + line.node_start.boundingRect().center()
+                line.update_using_qpoint(anchor, event.scenePos())
+    
+            elif line.node_start is None and line.node_end is None:
+                # Entrambi staccati (non dovrebbe accadere, ma gestiamo il caso)
+                pass
+    
+            else:
+                # Nuova linea in creazione: node_start è fisso, end segue il mouse
+                anchor = line.node_start.scenePos() + line.node_start.boundingRect().center()
+                line.update_using_qpoint(anchor, event.scenePos())
+    
             event.accept()
             return
+
         if self.rettangolo_visivo:
             punto_attuale = event.scenePos()
             
@@ -118,18 +176,37 @@ class MapTreeGrid(QGraphicsScene):
     def mouseReleaseEvent(self, event) -> None:
         
         obj_under_event = self.itemAt(event.scenePos(),QTransform())
-        if self.linea_in_costruzione:
 
-            if isinstance(obj_under_event,TextItem) and obj_under_event != self.linea_in_costruzione.node_start:
-                self.linea_in_costruzione.node_end = obj_under_event
-                self.linea_in_costruzione.node_end.connected_lines.append(self.linea_in_costruzione)
-                self.linea_in_costruzione.aggiorna_posizione()
-            else:
-                self.linea_in_costruzione.node_start.connected_lines.remove(self.linea_in_costruzione)
-                self.removeItem(self.linea_in_costruzione)
-            self.linea_in_costruzione = None
-            event.accept()
-            return
+        if self.linea_in_costruzione:
+            if self.linea_in_costruzione:
+                line = self.linea_in_costruzione
+
+                if line.node_start is None:
+                    if isinstance(obj_under_event, TextItem) and obj_under_event != line.node_end:
+                        line.node_start = obj_under_event
+                        obj_under_event.connected_lines.append(line)
+                        line.aggiorna_posizione()
+                    else:
+                        if line.node_end is not None:
+                            line.node_end.connected_lines.remove(line)
+                        self.removeItem(line)
+  
+                elif line.node_end is None:
+                    if isinstance(obj_under_event, TextItem) and obj_under_event != line.node_start:
+                        line.node_end = obj_under_event
+                        obj_under_event.connected_lines.append(line)
+                        line.aggiorna_posizione()
+                    else:
+  
+                        if line.node_start is not None:
+                            line.node_start.connected_lines.remove(line)
+                        self.removeItem(line)
+        
+                self.linea_in_costruzione = None
+                self._moving_end = None
+                event.accept()
+                return
+
         if event.button() == Qt.MouseButton.RightButton and self.rettangolo_visivo:
             area_rettangolo = self.rettangolo_visivo.rect()
             

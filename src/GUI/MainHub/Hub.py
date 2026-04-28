@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import QWidget, QMainWindow, QApplication
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QAction
 import os
+from pathlib import Path
 
 
 WIDTH = 1200
@@ -56,7 +57,7 @@ class Hub(QMainWindow):
             menuFinestre.addAction(azione)
 
         azione_impostazioni = QAction("Impostazioni", self)
-        azione_impostazioni.triggered.connect(self.apri_impostazioni)
+        azione_impostazioni.triggered.connect(self.apri_impostazioni)    
         menuFinestre.addAction(azione_impostazioni)
         self.setDockOptions(QMainWindow.DockOption.AllowTabbedDocks | QMainWindow.DockOption.AnimatedDocks)
         
@@ -70,10 +71,23 @@ class Hub(QMainWindow):
                 self._crea_e_aggancia_dock(widget, titolo)
                 if isinstance(widget,Manager):
                     widget.new_tab_ready.connect(self._crea_e_aggancia_dock)
+                    widget.open_this_mappa.connect(self._open_mappa)
         else:
             widget = costruttore()
             self._crea_e_aggancia_dock(widget, titolo)
+    def _open_mappa(self,file_path : str):
+        
+        path = Path(file_path)
 
+        viewer = Viewer(
+                        scene=MapTreeGrid(),
+                        titolo = path.stem,
+                        saving_path=path
+                        )
+        
+        viewer.loader.process_file(path)
+        
+        self._crea_e_aggancia_dock(viewer,viewer.title)
     def _crea_e_aggancia_dock(self, widget: QWidget, titolo: str):
         """Delega la grafica al PannelloDock e lo inserisce nella UI"""
         

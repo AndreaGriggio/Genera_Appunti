@@ -38,6 +38,7 @@ class TextItem(QGraphicsTextItem):
         self.bordo = True
         self.is_pdf_export = False
         self.document().setDocumentMargin(self.margin)
+        
 
     def mouseDoubleClickEvent(self, event):
         self.setTextInteractionFlags(Qt.TextInteractionFlag.TextEditorInteraction)

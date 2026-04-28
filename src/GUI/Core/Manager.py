@@ -24,6 +24,7 @@ from src.GUI.Core.ColorFileSystemModel import ColorFileSystemModel
 
 class Manager(QWidget):
     new_tab_ready = pyqtSignal(QWidget,str)
+    open_this_mappa = pyqtSignal(str)
     def __init__(self):
         super().__init__()
 
@@ -45,6 +46,7 @@ class Manager(QWidget):
         
         filters.append("*.pdf")
         filters.append("*.txt")
+        filters.append("*.mappa")
     
         self.model.setRootPath(DATAPATH) 
         self.model.setReadOnly(False)
@@ -54,15 +56,22 @@ class Manager(QWidget):
         self.tree_view.setModel(self.model)
         self.tree_view.setRootIndex(self.model.index(DATAPATH))
         #--- Scorciatoie ---
-        self.shortcut_delete = QShortcut(QKeySequence("Delete"), self.tree_view)
+        self.shortcut_delete = QShortcut(QKeySequence("Delete"), self)
+        self.shortcut_delete_backspace = QShortcut(QKeySequence("Backspace"), self)
+        
+        self.shortcut_delete_backspace.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        self.shortcut_delete.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+
+
         self.shortcut_enter = QShortcut(QKeySequence("Return"), self.tree_view)
         self.shortcut_num_enter = QShortcut(QKeySequence("Enter"), self.tree_view)
 
         # Colleghiamo entrambe alla stessa funzione
         self.shortcut_enter.activated.connect(self.azione_apri_elemento)
         self.shortcut_num_enter.activated.connect(self.azione_apri_elemento)
+        self.tree_view.doubleClicked.connect(self.azione_apri_elemento) 
         self.shortcut_delete.activated.connect(self.cancella)
-        self.tree_view.doubleClicked.connect(self.azione_apri_elemento)        
+        self.shortcut_delete_backspace.activated.connect(self.cancella)       
 
         self.tree_view.setColumnHidden(1, False) 
         self.tree_view.setColumnHidden(2, True)  
@@ -111,8 +120,9 @@ class Manager(QWidget):
         self.file_manager_window.log.connect(self.on_log_message)
         self.file_manager_window.new_tab_ready.connect(self.on_new_tab_ready)
 
+        
+        self.file_manager_window._orc.operation_finished.connect(self.reset_gui_state)
         self.file_manager_window._orc.busy_changed.connect(self._imposta_stato_caricamento)
-        self.file_manager_window._orc.operation_finished.connect(self.model.refresh_histories)
         self.file_manager_window._orc.operation_error.connect(self.on_log_message)
         main_layout.addWidget(self.log_area)
     def _imposta_stato_caricamento(self, occupato: bool):
@@ -122,17 +132,26 @@ class Manager(QWidget):
         Args:
             occupato (bool): True se il backend sta lavorando, False se è libero.
         """
-        self.btn_pulisci.setDisabled(occupato)
-        self.btn_aggiorna.setDisabled(occupato)
-        self.btn_crea.setDisabled(occupato)
-        self.btn_carica.setDisabled(occupato)
-        self.btn_pdf.setDisabled(occupato)
+        
         
         # Opzionale: puoi cambiare il cursore per far capire visivamente che sta caricando
         if occupato:
             self.setCursor(Qt.CursorShape.WaitCursor)
+
         else:
             self.setCursor(Qt.CursorShape.ArrowCursor)
+    def _disabilita_crea(self):
+        self.btn_crea.setDisabled(True)
+        self.btn_crea_mappa.setDisabled(True)
+        self.btn_carica.setDisabled(True)
+        self.btn_pdf.setDisabled(True)
+
+    def _disabilita_pulisci_aggiorna(self):
+        self.btn_pulisci.setDisabled(True)
+        self.btn_aggiorna.setDisabled(True)
+
+
+    
     def on_new_tab_ready(self,obj,testo):
         self.new_tab_ready.emit(obj,testo)
     def on_log_message(self, message):
@@ -147,6 +166,13 @@ class Manager(QWidget):
 
     def reset_gui_state(self):
         """Riporta i bottoni allo stato normale."""
+        self.btn_aggiorna.setDisabled(False)
+        self.btn_pulisci.setDisabled(False)
+        self.btn_crea.setDisabled(False)
+        self.btn_crea_mappa.setDisabled(False)
+        self.btn_carica.setDisabled(False)
+        self.btn_pdf.setDisabled(False)
+
         self.model.refresh_histories()
     def _crea_bottone(self,text: str,azione:Callable)->QPushButton:
         btn = QPushButton(text)
@@ -180,6 +206,7 @@ class Manager(QWidget):
         files = [u.toLocalFile() for u in a0.mimeData().urls()]
         testo_files = "\n".join([Path(f).name for f in files])
         self.mostra_messaggio(f"Hai caricato:\n{testo_files}")
+
     def _get_selected_paths(self, include_dirs: bool = False) -> list[Path]:
         """Estrae i percorsi dei file/cartelle selezionati nella TreeView."""
         indici = self.tree_view.selectedIndexes()
@@ -242,6 +269,8 @@ class Manager(QWidget):
             
             if file_path.lower().endswith('.pdf'):
                 self.file_manager_window.open_pdf(file_path)
+            elif file_path.lower().endswith('.mappa'):
+                self.open_this_mappa.emit(file_path)
 
             else:
                 # Usa QDesktopServices per aprire il file come se facessi doppio click
@@ -258,6 +287,9 @@ class Manager(QWidget):
         """
         Entra nella root base di Notion e ricorsivamente esplora tutto il profilo
         """
+        self._disabilita_pulisci_aggiorna()
+        self._disabilita_crea()
+        
         self.file_manager_window.aggiorna()
     def crea_mappe(self):
         """
@@ -266,6 +298,7 @@ class Manager(QWidget):
             2. Utilizza le API di Gemini per elaborare il file
             3. Riceve la risposta formattata pronta per essere inserita su Notion
         """
+        self._disabilita_pulisci_aggiorna()
         self.log_area.clear()
         file_paths = self._get_selected_paths(include_dirs=False)
         
@@ -287,6 +320,7 @@ class Manager(QWidget):
             2. Utilizza le API di Gemini per elaborare il file
             3. Riceve la risposta formattata pronta per essere inserita su Notion
         """
+        self._disabilita_pulisci_aggiorna()
 
         self.log_area.clear()
         file_paths = self._get_selected_paths(include_dirs=False)
@@ -316,6 +350,7 @@ class Manager(QWidget):
         Ricorsivamente scarica e crea il pdf partendo dalla pagina di Notion selezionata.
         Funziona solamente se il file selezionato è una cartella
         """
+        self._disabilita_pulisci_aggiorna()
         # Per il download PDF da Notion, il tuo FileActionHandler si aspetta le cartelle
         folder_paths = self._get_selected_paths(include_dirs=True)
         

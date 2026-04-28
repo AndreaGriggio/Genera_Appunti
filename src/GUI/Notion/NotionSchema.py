@@ -4,6 +4,17 @@ NotionSchema.py
 Unica fonte di verità per la struttura JSON che Gemini deve produrre
 e che NotionParser deve consumare.
 
+Struttura attesa da Gemini:
+{
+    "title": "Titolo documento",
+    "blocks": [
+        {"type": "heading_3", "text": "Concetto principale"},
+        {"type": "quote",     "text": "Definizione sintetica del concetto"},
+        {"type": "paragraph", "text": "Spiegazione estesa..."},
+        ...
+    ]
+}
+
 Regola: se aggiungi un BlockType, aggiungi il metodo corrispondente
 in NotionParser. Non devi toccare nient'altro.
 """
@@ -25,31 +36,32 @@ class BlockType(str, Enum):
     quote              = "quote"
     equation           = "equation"
 
-# ── Blocco singolo (schema piatto compatibile con Gemini) ─────────────────────
+
+# ── Blocco singolo ────────────────────────────────────────────────────────────
 
 class NotionBlock(BaseModel):
     type: BlockType = Field(
         description=(
             "Tipo di blocco Notion da usare. Istruzioni di scelta:\n"
-            "- 'heading_3'          → titolo di sezione o sotto-argomento\n"
-            "- 'paragraph'          → testo espositivo normale\n"
-            "- 'bulleted_list_item' → elemento di lista non ordinata\n"
-            "- 'numbered_list_item' → elemento di lista numerata o procedura passo-passo\n"
+            "- 'heading_3'          → titolo del concetto o sotto-argomento\n"
+            "- 'quote'              → definizione sintetica del concetto (segue sempre heading_3)\n"
+            "- 'paragraph'          → spiegazione discorsiva, ragionamenti, connessioni logiche\n"
+            "- 'bulleted_list_item' → proprietà, caratteristiche, casi (NON copiare elenchi dal PDF)\n"
+            "- 'numbered_list_item' → procedure, passi sequenziali, dimostrazioni\n"
             "- 'code'               → snippet di codice, comandi terminale, pseudocodice\n"
-            "- 'table'              → dati con righe e colonne (es. confronti, tabelle)\n"
-            "- 'quote'              → definizione da inseriro dopo ogni heading per spiegare brevemente il paragrafo\n"
-            "- 'equation'           → equazione standalone centrata su riga propria\n"
+            "- 'table'              → confronti strutturati tra concetti\n"
+            "- 'equation'           → formula matematica standalone\n"
             "Non usare MAI tipi non presenti in questa lista.\n"
         )
     )
 
-    # Usato da: paragraph, heading_3, bulleted_list_item, numbered_list_item, callout
+    # Usato da: paragraph, heading_3, bulleted_list_item, numbered_list_item, quote, equation
     text: str | None = Field(
         default=None,
         description=(
             "Testo del blocco. Obbligatorio per tutti i tipi tranne 'code' e 'table'. "
-            "Può contenere **grassetto** e $equazione inline$. "
-            "Per equazioni-standalone invece utilizza Katek puro"
+            "Può contenere **grassetto** (termini tecnici) e $equazione inline$. "
+            "Per equazioni standalone usa type 'equation' con LaTeX puro nel campo 'text'."
         )
     )
 
@@ -86,12 +98,17 @@ class NotionBlock(BaseModel):
 
 class NotionDocument(BaseModel):
     title: str = Field(
-        description="Titolo principale del documento o della lezione. Stringa semplice, senza #."
+        description=(
+            "Titolo sintetico degli appunti — NON il titolo del PDF originale. "
+            "Deve descrivere il concetto centrale trattato."
+        )
     )
     blocks: list[NotionBlock] = Field(
         description=(
-            "Lista PIATTA di tutti i blocchi del documento, in ordine di lettura. "
-            "Non annidare blocchi dentro altri blocchi. "
-            "Usa heading_3 per separare le sezioni tematiche."
+            "Lista PIATTA di tutti i blocchi in ordine di lettura. "
+            "Struttura attesa per ogni concetto: "
+            "heading_3 → quote → [paragrafi/liste/equazioni/codice]. "
+            "L'ultimo gruppo deve essere heading_3 'Punti chiave' "
+            "seguito da bulleted_list_item con le 3-5 cose più importanti."
         )
     )
