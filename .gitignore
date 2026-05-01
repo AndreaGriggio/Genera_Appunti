@@ -27,6 +27,7 @@ __pycache__/
 /dist/
 genera_appunti.spec
 src/GUI/Data/
+src/GUI/allcode.txt
 # IDE
 .vscode/
 .idea/
