@@ -4,13 +4,14 @@ import threading
 from pathlib import Path
 from notion_client import Client
 from notion_client.errors import APIResponseError
-
+from concurrent.futures import ThreadPoolExecutor,as_completed
 from src.GUI.config import DATAPATH, BASE_ID, NOTION_TOKEN
 
 # Quante chiamate API girano contemporaneamente.
 # Con threading.Thread non c'è più un pool fisso, quindi non c'è deadlock.
 # Il semaforo limita solo le richieste HTTP verso Notion.
 MAX_CONCURRENT_REQUESTS = 4
+MAX_THREADS = 20
 
 
 class NotionBrancher:
@@ -32,6 +33,7 @@ class NotionBrancher:
         # A differenza del pool fisso, i thread possono aspettare il
         # semaforo senza bloccare altri thread — niente deadlock.
         self._sem = threading.Semaphore(MAX_CONCURRENT_REQUESTS)
+        self._executor = ThreadPoolExecutor(max_workers=MAX_THREADS)
 
     # ── API helpers ───────────────────────────────────────────────────────────
 
@@ -91,81 +93,45 @@ class NotionBrancher:
     # ── Cuore: thread diretti + semaforo ─────────────────────────────────────
 
     def _esplora(self, page_id: str, titolo: str, livello: int) -> dict:
-        """
-        Esplora un nodo ricorsivamente usando threading.Thread diretto.
-
-        Differenza chiave rispetto a ThreadPoolExecutor:
-        - ThreadPoolExecutor ha N thread fissi. Se tutti aspettano .result(),
-          i nuovi lavori non partono mai → deadlock.
-        - threading.Thread non ha limite: ogni nodo crea i suoi thread figli
-          e li aspetta con .join(). I thread possono aspettare liberamente
-          senza bloccare altri thread. Zero deadlock per costruzione.
-        - Il semaforo limita solo le chiamate HTTP, non i thread stessi.
-        """
         print(f"{'  ' * livello} {titolo}")
-
         children_info = self._get_child_pages(page_id)
 
         if not children_info:
-            return {
-                "id": page_id, "titolo": titolo,
-                "livello": livello, "children": []
-            }
+            return {"id": page_id, "titolo": titolo, "livello": livello, "children": []}
 
-        # Dizionario condiviso tra thread per raccogliere i risultati.
-        # dict è thread-safe per operazioni su chiavi diverse in Python.
-        results: dict[str, dict] = {}
-
-        # Lancia un thread per ogni figlio con sotto-pagine.
-        # Nessun pool → nessun deadlock, anche con ricorsione profonda.
-        threads: list[tuple[str, threading.Thread]] = []
-
+        # Sottometti i figli all'executor condiviso (non crea thread illimitati)
+        futures = {}
         for c in children_info:
             if c["has_children"]:
-                def worker(child=c):
-                    try:
-                        results[child["id"]] = self._esplora(
-                            child["id"], child["titolo"], livello + 1
-                        )
-                    except Exception as e:
-                        print(f"Errore nodo {child['id']} ({child['titolo']}): {e}")
-                        results[child["id"]] = {
-                            "id":       child["id"],
-                            "titolo":   child["titolo"],
-                            "livello":  livello + 1,
-                            "children": []
-                        }
+                future = self._executor.submit(
+                    self._esplora, c["id"], c["titolo"], livello + 1
+                )
+                futures[c["id"]] = future
 
-                t = threading.Thread(target=worker, daemon=True)
-                threads.append((c["id"], t))
-                t.start()
+        # Attendi i risultati
+        results = {}
+        for child_id, future in futures.items():
+            try:
+                results[child_id] = future.result(timeout=60)
+            except Exception as e:
+                print(f"Errore nodo {child_id}: {e}")
+                results[child_id] = {
+                    "id": child_id, "titolo": "Errore",
+                    "livello": livello + 1, "children": []
+                }
 
-        # Aspetta che tutti i thread figli finiscano.
-        # .join() blocca questo thread, ma non impedisce agli altri
-        # thread (fratelli, cugini) di girare in parallelo.
-        for _, t in threads:
-            t.join()
-
-        # Ricostruisce l'ordine originale
         children_nodes = []
         for c in children_info:
             if c["has_children"]:
                 children_nodes.append(results[c["id"]])
             else:
-                print(f"{'  ' * (livello + 1)} {c['titolo']}")
                 children_nodes.append({
-                    "id":       c["id"],
-                    "titolo":   c["titolo"],
-                    "livello":  livello + 1,
-                    "children": []
+                    "id": c["id"], "titolo": c["titolo"],
+                    "livello": livello + 1, "children": []
                 })
 
-        return {
-            "id":       page_id,
-            "titolo":   titolo,
-            "livello":  livello,
-            "children": children_nodes
-        }
+        return {"id": page_id, "titolo": titolo, "livello": livello, "children": children_nodes}
+
 
     # ── Entry point ───────────────────────────────────────────────────────────
 
@@ -183,11 +149,12 @@ class NotionBrancher:
                 )
             titoli = root_page.get("properties", {}).get("title", {}).get("title", [])
             root_titolo = titoli[0].get("plain_text", "Root") if titoli else "Root"
+            risultato = self._esplora(self.BASE_ID, root_titolo, 0)
         except Exception:
             root_titolo = "Root"
-
-        risultato = self._esplora(self.BASE_ID, root_titolo, 0)
-
+        self._executor.shutdown(wait=False) 
+        
+        
         output_path = Path(DATAPATH) / "dict_notion.json"
         output_path.parent.mkdir(parents=True, exist_ok=True)
         

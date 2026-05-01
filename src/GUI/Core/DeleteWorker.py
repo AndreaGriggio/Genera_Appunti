@@ -58,16 +58,12 @@ class DeleteWorker:
             with open(self.history_loaded_path, "r", encoding="utf-8") as f:
                 h2 = json.load(f)
                 
-            # 1. Creiamo un set con TUTTI i nomi senza estensione dei PDF fisici
-            # Questo rende la ricerca istantanea ed evita i problemi con i percorsi completi
             pdf_fisici_stems = {pdf.stem for pdf in self.get_pdfs()}
             
             # 2. Puliamo h1: prendiamo solo il nome senza estensione (Path(nome).stem)
             # e lo teniamo SOLO se esiste fisicamente tra i pdf
             h1_pulito = [Path(nome).stem for nome in h1 if Path(nome).stem in pdf_fisici_stems]
-            
-            # 3. Puliamo h2 per avere solo i nomi senza estensione
-            h2_pulito = [Path(nome).stem for nome in h2]
+            h2_pulito = [Path(nome).stem for nome in h2 if Path(nome).stem in pdf_fisici_stems]
             
             print("h1 : ", h1_pulito)
             print("h2 : ", h2_pulito)

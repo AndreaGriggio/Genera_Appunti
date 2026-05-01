@@ -77,7 +77,8 @@ class Manager(QWidget):
         self.tree_view.setColumnHidden(2, True)  
         self.tree_view.setColumnHidden(3, False)
         self.tree_view.sortByColumn(0, Qt.SortOrder.AscendingOrder)
-        self.tree_view.setDragDropMode(QTreeView.DragDropMode.DropOnly)
+        self.tree_view.setDragDropMode(QTreeView.DragDropMode.InternalMove)
+        
         self.tree_view.setSelectionMode(QTreeView.SelectionMode.ExtendedSelection)
         self.tree_view.setAnimated(True)
         self.tree_view.setIndentation(20)

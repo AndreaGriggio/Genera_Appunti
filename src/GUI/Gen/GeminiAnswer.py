@@ -2,7 +2,9 @@ import os
 from pathlib import Path
 from src.GUI.config import DATAPATH
 import json
+import threading
 class GeminiAnswer:
+    _lock = threading.Lock()  #Lock della classe GeminiAnser è condiviso tra tutte le istanze,
     def __init__(self):
         
         # 1. Definiamo il file della lista nera (storico)
@@ -24,11 +26,12 @@ class GeminiAnswer:
 
     def add_to_history(self, pdf_filename: str):
         """Aggiunge il nome del file alla lista nera, evitando duplicati."""
-        history = self.get_history()
-        if pdf_filename not in history:
-            history.append(pdf_filename)
-            with open(self.history_file, "w", encoding="utf-8") as f:
-                json.dump(history, f, indent=4)
+        with GeminiAnswer._lock:
+            history = self.get_history()
+            if pdf_filename not in history:
+                history.append(pdf_filename)
+                with open(self.history_file, "w", encoding="utf-8") as f:
+                    json.dump(history, f, indent=4)
 
     def save_answer(self, answer_text: str, pdf_path: str,is_json:bool = True,is_map:bool = False):
         """Salva la risposta di Gemini in un file di testo e aggiorna la blacklist."""

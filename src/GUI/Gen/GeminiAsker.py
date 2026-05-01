@@ -15,102 +15,71 @@ class GeminiAsker :
             if mode["available"]:
                 self.current_model = mode["name"]
                 break
-    def ask(self, prompt: str, path: str = "", pdf: bool = False, is_json: bool = False,gen_map : bool = False) -> list[types.GenerateContentResponse |bool]| None:
-        """
-        Invia una richiesta a Gemini.
-        Gestisce automaticamente cambi di modelli.
-        Gestisce automaticamente errori di chiamata API
-        """
-        if not prompt : 
-            return None
-        path_obj  = Path(path) if path else None
-        is_pdf    = path_obj is not None and path_obj.suffix.lower() == ".pdf"
-        has_file  = path_obj is not None and path_obj.exists()
-        # 1. SCELTA DEL MODELLO
-        # Chiediamo al manager il miglior modello disponibile ORA
-        l= self.manager.get_best_model(needs_pdf=pdf, needs_json=is_json)
-        if not l:
-            print("Nessun modello disponibile o risorse esaurite su tutti i modelli.")   
-            return None
+    def ask(self, prompt: str, path: str = "", pdf: bool = False, 
+        is_json: bool = False, gen_map: bool = False):
+    
+        MAX_ATTEMPTS = 5
 
-        #Campi di ritorno del model manager 
-        #l[0] è il nome del modello
-        #l[1] è se il modello supporta la creazione di json
-        if isinstance(l[0],str):
-            model_name = l[0] 
-            if isinstance(l[1],bool):
-                json=l[1]
-            else :
-                json = False
-        else :
-            model_name = None
-            json = False
-        # Se il manager restituisce None, significa che abbiamo finito i modelli (o i tentativi)
-        if model_name is None:
-            print("Nessun modello disponibile o risorse esaurite su tutti i modelli.")
-            return None
-
-        print(f"Tentativo con modello: {model_name}")
-        if gen_map :
-            instructions = MENTAL_MAP_SYSTEM_INSTRUCTION
-        else :
-            instructions = NOTION_SYSTEM_INSTRUCTION
-
-        # 2. CONFIGURAZIONE
-        config = self.manager.get_config(model_name,gen_map=gen_map, force_json=json,system_instruction=instructions)
-
-        # 3. PREPARAZIONE CONTENUTI
-        contents = []
-        
-        if has_file:
-            try:
-                if is_pdf:
-                    # PDF → bytes con mime type corretto
-                    pdf_bytes = path_obj.read_bytes()
-                    contents.append(types.Part.from_bytes(
-                        data=pdf_bytes,
-                        mime_type=GeminiAsker.PDF_MIME
-                    ))
-                else:
-                    # TXT o qualsiasi altro testo → stringa diretta
-                    testo = path_obj.read_text(encoding="utf-8")
-                    contents.append(testo)
-            except Exception as e:
-                print(f"Errore caricamento file {path}: {e}")
+        for attempt in range(MAX_ATTEMPTS):
+            l = self.manager.get_best_model(needs_pdf=pdf, needs_json=is_json)
+            if not l:
+                print("Nessun modello disponibile.")
                 return None
- 
-        contents.append(prompt)
- 
-        # 4. Chiamata API
-        try:
-            response = self.client.models.generate_content(
-                model=model_name,
-                contents=contents,
-                config=config
+
+            model_name = l[0] if isinstance(l[0],str) else self.current_model
+            json_mode = l[1] if isinstance(l[1], bool) else False
+
+            instructions = MENTAL_MAP_SYSTEM_INSTRUCTION if gen_map else NOTION_SYSTEM_INSTRUCTION
+            config = self.manager.get_config(
+                model_name, 
+                gen_map=gen_map,
+                force_json=json_mode, 
+                system_instruction=instructions
             )
-            return [response, json,gen_map]
- 
-        except errors.ClientError as e:
-            error_code = e.code if hasattr(e, "code") else 0
- 
-            if error_code == 429:
-                print(f"Quota esaurita per {model_name}. Cambio modello...")
-                self.manager.report_error(model_name, error_code)
-                return self.ask(prompt, path, is_json)
- 
-            elif error_code >= 500:
-                print(f"Errore Server Google ({error_code}). Riprovo...")
-                self.manager.report_error(model_name, error_code)
-                return self.ask(prompt, path, is_json)
- 
-            else:
-                print(f"Errore non recuperabile ({error_code}): {e}")
+
+            contents = []
+            path_obj = Path(path) if path else None
+            
+            if path_obj and path_obj.exists():
+                try:
+                    if path_obj.suffix.lower() == ".pdf":
+                        contents.append(types.Part.from_bytes(
+                            data=path_obj.read_bytes(),
+                            mime_type=GeminiAsker.PDF_MIME
+                        ))
+                    else:
+                        contents.append(path_obj.read_text(encoding="utf-8"))
+                except Exception as e:
+                    print(f"Errore caricamento file: {e}")
+                    return None
+
+            contents.append(prompt)
+
+            try:
+                response = self.client.models.generate_content(
+                    model=model_name,
+                    contents=contents,
+                    config=config
+                )
+                return [response, json_mode, gen_map]
+
+            except errors.ClientError as e:
+                error_code = e.code if hasattr(e, "code") else 0
+                if error_code in (429, 500, 502, 503, 504):
+                    print(f"Errore {error_code} su {model_name}, cambio modello...")
+                    self.manager.report_error(model_name, error_code)
+                    continue  
+                else:
+                    print(f"Errore non recuperabile ({error_code}): {e}")
+                    return None
+
+            except Exception as e:
+                error = str(e)
+                self.manager.report_error(error,-1)  
+                print(f"Errore generico: {e}")
                 return None
- 
-        except Exception as e:
-            print(f"Errore generico imprevisto: {e}")
-            return None
 
-
+        self.manager.report_error("Tentaivi esauriti",-1)
+        return None
 
         

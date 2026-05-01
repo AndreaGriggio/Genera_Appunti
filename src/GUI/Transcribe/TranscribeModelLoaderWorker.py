@@ -14,21 +14,22 @@ class TranscribeModelLoaderWorker (QThread):
     def __init__(self, audio_paths):
         super().__init__()
         self.audio_paths = audio_paths
-        self.queue = multiprocessing.Queue()
+        self.task_queue = multiprocessing.Queue()
+        self.result_queue = multiprocessing.Queue()
         self.process = None
 
     def run(self):
         # Avvia il processo multiprocessing
         self.process = multiprocessing.Process(
             target=whisper_lazy_engine, 
-            args=(self.audio_paths, self.queue)
+            args=(self.task_queue, self.result_queue)
         )
         self.process.start()
 
-        # Ciclo di ascolto della coda
+        self.task_queue.put({"paths": self.audio_paths})
+
         while True:
-            msg = self.queue.get() # Aspetta un messaggio dal processo
-            
+            msg = self.result_queue.get()
             if msg["type"] == "log":
                 self.log.emit(msg["content"])
             elif msg["type"] == "progress":
@@ -36,12 +37,11 @@ class TranscribeModelLoaderWorker (QThread):
             elif msg["type"] == "error":
                 self.error.emit(msg["content"])
                 break
-            elif msg["type"] == "finished":
+            elif msg["type"] == "all_done":
                 self.finished.emit()
                 break
         
-        self.process.join() # Chiude il processo pulitamente
-
+        self.process.join()
 
 
 

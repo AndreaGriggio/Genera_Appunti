@@ -40,6 +40,7 @@ class MarkdownToPDF:
 
     def convert(self, markdown_text: str, output_path: str ) -> bool:
         if not markdown_text.strip():
+            print("Testo markdown vuoto")
             return False
         
         markdown_text = self._fix_notion_shortcuts(markdown_text)

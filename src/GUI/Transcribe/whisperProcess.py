@@ -42,7 +42,7 @@ def whisper_lazy_engine(task_queue, result_queue):
             try:
                 model = WhisperModel(
                     model_path,
-                    device="cuda",
+                    device="auto",
                     compute_type="float32",
                     # Quando frozen, il modello è locale: non serve download
                     local_files_only=getattr(sys, 'frozen', False),
